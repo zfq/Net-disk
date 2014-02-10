@@ -436,12 +436,6 @@
     NSLog(@"move");
 }
 
-//多文件删除在deleFile中已实现 824
-//- (void)deleteFiles:(id)sender
-//{
-//    NSLog(@"删除");
-//}
-
 #pragma mark -文件路径
 - (MyFileViewController *)initWithDirectoryAtPath:(NSString *)dirPath
 {
@@ -656,13 +650,7 @@
     CGRect rect = self.myFileTableView.frame;
     [UIView beginAnimations:nil context:NULL];
     [UIView setAnimationDuration:0.35];
-    //    for (UIView *subView in [self.navigationController.view.subviews objectAtIndex:0])
-    //    {
-    //        if (subView == self.myFileTableView) {
-    //            subView.frame =
-    //        }
-    //    }
-    
+   
     for (UIView *subView in self.navigationController.view.subviews)
     {
         if ([subView isKindOfClass:[UINavigationBar class]]) {
@@ -791,24 +779,30 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     if (indexPath.section > 0)
     {
-        [[tableView cellForRowAtIndexPath:indexPath] setSelected:YES animated:YES];
-        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-        cell.selectedBackgroundView = [[UIView alloc] initWithFrame:cell.frame];
-        cell.selectedBackgroundView.backgroundColor = NavigationBarColor;
         if ([tableView cellForRowAtIndexPath:indexPath].editing) { //如果正处于编辑状态，就不让push
             if (!_selectIndexPaths) {
                  _selectIndexPaths = [[NSMutableArray alloc] init];
             }
             [_selectIndexPaths addObject:indexPath];
+            
+            [[tableView cellForRowAtIndexPath:indexPath] setSelected:YES animated:YES];
+            
             NSInteger count = _selectIndexPaths.count;
             [self setAllBarItemsEnabledWithCount:count];
             return;
+        } else {
+            if (indexPath.row>0) { //对于展开行(即展开出来的行)，不让push
+                return;
+            }
+
+            UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+            UIView *backgroundView = [[UIView alloc] initWithFrame:cell.frame];
+            cell.selectedBackgroundView = backgroundView;
+            cell.selectedBackgroundView.backgroundColor = NavigationBarColor;
+
+            MainContentItem *item = [self.itemSotre.allItems objectAtIndex:indexPath.section-1];
+            [self previewItem:item];
         }
-        if (indexPath.row>0) { //对于展开行(即展开出来的行)，不让push
-            return;
-        }
-         MainContentItem *item = [self.itemSotre.allItems objectAtIndex:indexPath.section-1];
-        [self previewItem:item];
      }
 }
 
