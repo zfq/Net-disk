@@ -795,14 +795,14 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
         cell.selectedBackgroundView = [[UIView alloc] initWithFrame:cell.frame];
         cell.selectedBackgroundView.backgroundColor = NavigationBarColor;
-        if ([tableView cellForRowAtIndexPath:indexPath].editing) {
+        if ([tableView cellForRowAtIndexPath:indexPath].editing) { //如果正处于编辑状态，就不让push
             if (!_selectIndexPaths) {
                  _selectIndexPaths = [[NSMutableArray alloc] init];
             }
             [_selectIndexPaths addObject:indexPath];
             NSInteger count = _selectIndexPaths.count;
             [self setAllBarItemsEnabledWithCount:count];
-            return; //如果正处于编辑状态，就不让push
+            return;
         }
         if (indexPath.row>0) { //对于展开行(即展开出来的行)，不让push
             return;
@@ -1053,30 +1053,31 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     NSString *buttonTitle = [actionSheet buttonTitleAtIndex:buttonIndex];
     if ([buttonTitle isEqualToString:@"确认删除"]) {
-        if (self.selectIndexPaths.count > 0) {
+        if (self.selectIndexPaths.count > 0) {   //多选时的删除
             //删除所有选中的文件
-            [self.myFileTableView beginUpdates];
+            NSMutableIndexSet *indexSets = [NSMutableIndexSet indexSet];
             int i = 0;
             for (NSIndexPath *indexPath in [self.myFileTableView indexPathsForSelectedRows]) {
                 MainContentItem *item = [self.itemSotre.allItems objectAtIndex:indexPath.section-i-1];
                 [self.itemSotre.allItems removeObject:item];
-                [[NSFileManager defaultManager] removeItemAtPath:item.currentFolderPath error:nil];
-                NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:indexPath.section];
-                [self.myFileTableView deleteSections:indexSet withRowAnimation:UITableViewRowAnimationNone];
+                [indexSets addIndex:indexPath.section];
                 if (_selectIndexPaths.count > 0) {
                     [_selectIndexPaths removeObject:indexPath];
                     i++;
                 }
-                [self setAllBarItemsEnabledWithCount:_selectIndexPaths.count];
             }
+            
+            [self.myFileTableView beginUpdates];
+            [self.myFileTableView deleteSections:indexSets withRowAnimation:UITableViewRowAnimationNone];
             [self.myFileTableView endUpdates];
+            [self setAllBarItemsEnabledWithCount:_selectIndexPaths.count];
+            
         } else {
             MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
             NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:self.selectIndex.section];
             //应先删除服务器端的文件，再删除本地的文件或者
             [self.myFileTableView beginUpdates];
             [[self.itemSotre allItems] removeObject:item];
-            [[NSFileManager defaultManager] removeItemAtPath:item.currentFolderPath error:nil];
             [self.myFileTableView deleteRowsAtIndexPaths:@[self.indexOfUnfold] withRowAnimation:UITableViewRowAnimationNone];
             [myFileTableView deleteSections:indexSet withRowAnimation:UITableViewRowAnimationNone];
             self.isUnfold = NO; //注意这个不能少
@@ -1084,6 +1085,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             //删除文件夹中的文件
         }
     }
+    self.indexOfUnfold = nil;
     [self.navigationItem.rightBarButtonItem setTitle:@"多选"];
     [self.myFileTableView setEditing:NO animated:YES];
     if (self.selectIndexPaths) {
