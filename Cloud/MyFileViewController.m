@@ -880,9 +880,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         return UITableViewCellEditingStyleDelete | UITableViewCellEditingStyleInsert;
 }
 
-#pragma mark - scrollview delegate
-
-#pragma mark - 按钮点击事件
+#pragma mark - 改变折叠按钮图片
 - (void)changeArrowDirectionForIndexPathofUnfold
 {
     if (self.indexOfUnfold != nil) {
@@ -930,7 +928,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         }
     }
     [self.myFileTableView endUpdates];
-     [self makeCellVisibleAtIndexPath:newIndexPath];
+    [self makeCellVisibleAtIndexPath:newIndexPath];
 }
 
 - (void)makeCellVisibleAtIndexPath:(NSIndexPath*)indexPath
@@ -957,23 +955,32 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     [cell.moreBtn addTarget:self action:@selector(moreFile:) forControlEvents:UIControlEventTouchUpInside];
 }
 
+//保存图片
 - (void)saveFile:(id)sender
 {
-    //从服务器下载该图片
-    //将下载后的图片写入照片库
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"保存到本地相册", nil];
     actionSheet.tag = 1011;
     [actionSheet showFromToolbar:self.navigationController.toolbar];
 }
 
+//分享文件
 - (void)shareFile:(id)sender
 {
-    [self showShareSingleFileOrFolderActionSheet];
+//    [self showShareSingleFileOrFolderActionSheet];
+    UIActionSheet *shareList = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消"destructiveButtonTitle:nil otherButtonTitles:
+                                @"复制链接", @"短信分享",@"邮件分享",
+                                @"分享到新浪微博",@"分享到腾讯微博",
+                                @"分享到QQ空间",@"分享给微信好友",@"分享到微信朋友圈",
+                                nil];
+    shareList.tag = 1012;
+    [shareList showFromToolbar:self.navigationController.toolbar];
 }
 
+//删除文件,多选删除和拓展行删除用的是同一个函数
 - (void)deleteFile:(id)sender
 {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:@"在回收站找回删除的文件" delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:@"确认删除" otherButtonTitles:nil, nil];
+    actionSheet.tag = 1013;
     if (self.selectIndexPaths.count > 0) {
         [actionSheet showFromToolbar:_toolBar];
     } else {
@@ -981,14 +988,68 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }
 }
 
+//更多操作
 - (void)moreFile:(id)sender
 {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",nil];
+    actionSheet.tag = 1014;
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
 
 #pragma mark - actionSheet代理方法
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    switch (actionSheet.tag) {
+        case 1011:  //保存文件
+            [self saveFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
+            break;
+        case 1012:  //分享文件
+            [self shareFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
+            break;
+        case 1013:  //删除图片
+            [self deleteFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
+            break;
+        case 1014:  //更多操作
+            [self moreFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
+            break;
+        default:
+            break;
+    }
+}
+
+#pragma mark - actionSheet操作
+/*
+- (void)image: (UIImage *) image didFinishSavingWithError: (NSError *) error
+  contextInfo: (void *) contextInfo;
+{
+    [self createHUD];
+    UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
+    
+    if (error != NULL) {
+        [self showHUDWithImage:img messege:@"照片保存失败"];
+    }else{
+        [self showHUDWithImage:img messege:@"照片保存成功"];
+    };
+}
+*/
+
+- (void)saveFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+        //图片单个文件保存，indexofUnfold
+     if (buttonIndex == 0) {
+//         NSString *imgName = [_photoArray objectAtIndex:_currentPhotoIndex];
+//         UIImage *currentImage = [UIImage imageNamed:imgName];
+//         UIImageWriteToSavedPhotosAlbum(currentImage, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
+     }
+
+}
+
+- (void)shareFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    
+}
+
+- (void)deleteFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
 {
     NSString *buttonTitle = [actionSheet buttonTitleAtIndex:buttonIndex];
     if ([buttonTitle isEqualToString:@"确认删除"]) {
@@ -1031,51 +1092,12 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     if (self.toolBar != nil) {
         [self showTabBar];
     }
-    
-/*actionSheet事件相应
-    switch (actionSheet.tag) {
-        case 1009:  //单个文件保存
-            
-            break;
-        case 1010:
-            break;
-        case 1011:
-            break;
-        default:
-            break;
-    }
-    if (actionSheet.tag == 1010) {
-        
-    } else if(actionSheet.tag == 1011) { //单个文件保存
-        
-        //图片单个文件保存，indexofUnfold
-        if (buttonIndex == 0) {
-//            NSString *imgName = [_photoArray objectAtIndex:_currentPhotoIndex];
-//            UIImage *currentImage = [UIImage imageNamed:imgName];
-//            UIImageWriteToSavedPhotosAlbum(currentImage, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
-        }
-
-    }
- */
-    
 }
 
-/*
-- (void)image: (UIImage *) image didFinishSavingWithError: (NSError *) error
-  contextInfo: (void *) contextInfo;
-{
-    [self createHUD];
-    UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
-    
-    if (error != NULL) {
-        [self showHUDWithImage:img messege:@"照片保存失败"];
-    }else{
-        [self showHUDWithImage:img messege:@"照片保存成功"];
-    };
-}
-*/
+- (void)moreFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{}
 
-#pragma mark - 自定义cell代理方法
+#pragma mark - setMainContentCell代理方法
 - (void)tapDownloadButtonInSetFolderCell:(SetFolderCell *)cell
 {
     NSLog(@"下载文件夹");
@@ -1085,6 +1107,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     [self showShareSingleFileOrFolderActionSheet];
 }
+
 
 - (void)showShareSingleFileOrFolderActionSheet  //对于单个的文件或文件夹使用相同的actionSheet，只需获取所选择的行即可
 {
