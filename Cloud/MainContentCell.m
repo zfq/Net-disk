@@ -14,7 +14,6 @@
 {
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
-        
     }
     return self;
 }
@@ -24,6 +23,20 @@
     [super layoutSubviews];
 //    UILabel *separatorLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, self.contentView.frame.size.height-1.2, 320, 1.2)];
 //    separatorLabel.backgroundColor = [UIColor lightGrayColor];
+    
+    float indentPoints = self.indentationLevel * self.indentationWidth;
+    self.contentView.frame = CGRectMake(
+                                        indentPoints,
+                                        self.contentView.frame.origin.y,
+                                        self.contentView.frame.size.width - indentPoints,
+                                        self.contentView.frame.size.height
+                                        );
+    if (self.editing) {
+        self.contentView.frame = CGRectMake(35, self.contentView.frame.origin.y, self.contentView.frame.size.width - 35, self.contentView.frame.size.height);
+    } else {
+        self.contentView.frame = CGRectMake(0, self.contentView.frame.origin.y, self.contentView.frame.size.width, self.contentView.frame.size.height);
+    }
+   
 }
 
 

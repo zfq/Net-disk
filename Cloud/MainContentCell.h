@@ -13,6 +13,7 @@
 @property (nonatomic,weak) IBOutlet UIImageView *thumbnailView;
 @property (nonatomic,weak) IBOutlet UILabel *nameLabel;
 @property (nonatomic,weak) IBOutlet UILabel *dateLabel;
+@property (nonatomic,weak) IBOutlet UILabel *sizeLabel;
 @property (nonatomic,weak) IBOutlet UIButton *unfoldBtn;
 
 @end
