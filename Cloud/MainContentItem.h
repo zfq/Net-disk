@@ -28,7 +28,8 @@ typedef enum  {
 
 @property (nonatomic,assign) FileProperty fileProperty;
 //@property (nonatomic,strong) NSString *modifyDate; //文件修改日期
-@property (nonatomic,assign) double fileSize; //文件大小
+//@property (nonatomic,assign) double fileSize; //文件大小
+@property (nonatomic,strong) NSString *fileSize;
 - (id)initWithMainCntentItem:(NSString *)fName Image:(UIImage *)tImage Date:(NSDate *)dCreated;
 - (void)setThumbnailImageFromData:(NSData *)imageData;
 
