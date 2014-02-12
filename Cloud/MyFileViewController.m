@@ -17,6 +17,7 @@
 #import "Constant.h"
 #import "TBXML.h"
 #import "AFNetworking.h"
+#import "MBProgressHUD.h"
 
 @interface MyFileViewController ()<UIActionSheetDelegate,UISearchBarDelegate,SetFolderCellDelegate,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
 {
@@ -26,6 +27,7 @@
     NSMutableData *_receiveData;
     BOOL _receivedNotificaion;
     BOOL _connIsFinished;
+    MBProgressHUD *_HUD;
 }
 
 @property (nonatomic) BOOL isUnfold;
@@ -541,12 +543,12 @@
 }
 
 #pragma mark - NewFolderViewController代理
-- (void)tapCancel:(NewFolderViewController *)newFolderViewController
+- (void)cancelNewFolder:(NewFolderViewController *)newFolderViewController
 {
     [self.navigationController dismissViewControllerAnimated:YES completion:nil];
 }
 
-- (void)tapDone:(NewFolderViewController *)newFolderViewController
+- (void)completeNewFolder:(NewFolderViewController *)newFolderViewController
 {
     static NSInteger i = 1;
     NSString *itemName = newFolderViewController.folderName.text;
@@ -555,24 +557,82 @@
         itemName = [itemName stringByAppendingFormat:@"(%i)",i++];
         tempItem = [self.itemDictionaryStore objectForKey:itemName];
     }
-    //尝试向服务器写入这个文件夹，如果写入成功，再往本地写入文件夹
     
-    NSString *itemPath = [self.currentPath stringByAppendingPathComponent:itemName];
+    [self createDirWithName:itemName Request:_request];
+//    NSString *itemPath = [self.currentPath stringByAppendingPathComponent:itemName];
+//    NSDate *currentDate = [NSDate date];
+//    [[NSFileManager defaultManager] createDirectoryAtPath:itemPath withIntermediateDirectories:YES attributes:nil error:nil];
     
-    NSDate *currentDate = [NSDate date];
-    [[NSFileManager defaultManager] createDirectoryAtPath:itemPath withIntermediateDirectories:YES attributes:nil error:nil];
+//    MainContentItem *newItem = [itemSotre createFolderWithName:itemName date:currentDate folderPath:self.currentPath isDir:YES];
+//    [self.itemSotre.allItems insertObject:newItem atIndex:0];
+//    NSInteger lastRow = [itemSotre.allItems indexOfObject:newItem];
+//    [self rebuildFileList:self.currentPath];
     
-    MainContentItem *newItem = [itemSotre createFolderWithName:itemName date:currentDate folderPath:itemPath isDir:YES];
-    
-    NSInteger lastRow = [itemSotre.allItems indexOfObject:newItem];
-    [self rebuildFileList:self.currentPath];
-    
-    [self.myFileTableView beginUpdates];
-    NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:lastRow+1];
-    [self.myFileTableView insertSections:indexSet withRowAnimation:UITableViewRowAnimationNone];
-    [self.myFileTableView endUpdates];
+//    [self.myFileTableView beginUpdates];
+//    NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:1];
+//    [self.myFileTableView insertSections:indexSet withRowAnimation:UITableViewRowAnimationAutomatic];
+//    [self.myFileTableView endUpdates];
 
     [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)createFolderWithName:(NSString *)folderName
+{
+    NSDate *currentDate = [NSDate date];
+    MainContentItem *newItem = [itemSotre createFolderWithName:folderName date:currentDate folderPath:self.currentPath isDir:YES];
+    [self.itemSotre.allItems insertObject:newItem atIndex:0];
+    [self.myFileTableView beginUpdates];
+    NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:1];
+    [self.myFileTableView insertSections:indexSet withRowAnimation:UITableViewRowAnimationAutomatic];
+    [self.myFileTableView endUpdates];
+}
+
+- (void)createDirWithName:(NSString *)folderName Request:(NSMutableURLRequest *)request
+{
+    NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
+    NSString *urlString = [NSString stringWithFormat:@"%@cndcreatedir.cgi?path=%@&name=%@&sid=%@",HOST_URL,self.currentPath,folderName,sid];
+    if (!request) {
+        request = [[NSMutableURLRequest alloc] init];
+        [request setHTTPMethod:@"GET"];
+        [request setTimeoutInterval:60];
+    }
+    request.URL = [NSURL URLWithString:urlString];
+    AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
+    [requestOperaton setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [self parseCreateDirResultWithData:operation.responseData name:folderName];
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        NSLog(@"创建文件夹失败:%@",[error localizedDescription]);
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+    }];
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    [requestOperaton start];
+}
+
+- (void)parseCreateDirResultWithData:(NSData *)data name:(NSString *)folderName
+{
+    NSError *error = nil;
+    TBXML *xml = [[TBXML alloc] initWithXMLData:data error:&error];
+    if (error) {
+        NSLog(@"解析文件错误:%@",[error localizedDescription]);
+        return;
+    }
+    TBXMLElement *root = [xml rootXMLElement];
+    TBXMLElement *deleteNode = [TBXML childElementNamed:@"Creatdir" parentElement:root];
+    TBXMLElement *statusNode = [TBXML childElementNamed:@"Status" parentElement:deleteNode];
+    NSString *errorNum = [NSString stringWithCString:statusNode->firstAttribute->value encoding:NSUTF8StringEncoding];
+    if ([errorNum isEqualToString:@""]) {
+       //添加行
+        [self createFolderWithName:folderName];
+    } else {
+        if ([errorNum isEqualToString:@"02000005"])
+            [self showHUDWithMessage:@"该文件夹已存在"];
+        else if ([errorNum isEqualToString:@"020000020"])
+            [self showHUDWithMessage:@"获取已使用空间失败"];
+        else if ([errorNum isEqualToString:@"020000021"])
+            [self showHUDWithMessage:@"没有足够空间"];
+    }
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
 
 #pragma mark - UISearchBar代理
@@ -1158,7 +1218,10 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         [self parseDeleteResultWithData:operation.responseData];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
         NSLog(@"删除失败:%@",[error localizedDescription]);
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+
     }];
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
     [requestOperaton start];
 }
 
@@ -1179,11 +1242,11 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             [self deleteMutableItems];
         else
             [self deleteSingleItem];
-        
-        NSLog(@"删除成功");
     } else {
         NSLog(@"删除错误:%@",errorNum);
     }
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
 
 #pragma mark - setMainContentCell代理方法
@@ -1309,7 +1372,6 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         _receiveData = [[NSMutableData alloc] init];
     }
     [_receiveData appendData:data];
-
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection
@@ -1319,6 +1381,48 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //    NSLog(@"%@",[[NSString alloc] initWithData:_receiveData encoding:NSUTF8StringEncoding]);
     [self parseFileListWithData:_receiveData];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+}
+
+#pragma mark - 提示框
+#pragma mark 显示提示框
+- (void)createHUDWithCustomView
+{
+    if (!_HUD) {
+        _HUD = [[MBProgressHUD alloc] initWithView:self.view];
+        [self.view addSubview:_HUD];
+        _HUD.mode = MBProgressHUDModeCustomView;
+    }
+}
+
+- (void)showHUDWithImage:(UIImage *)image messege:(NSString *)string
+{
+    if (_HUD==nil)
+        return;
+    _HUD.customView = [[UIImageView alloc] initWithImage:image];
+    _HUD.labelText = string;
+    [_HUD showAnimated:YES whileExecutingBlock:^{
+        sleep(3);
+    } completionBlock:^{
+        [_HUD removeFromSuperview];
+        _HUD = nil;
+    }];
+}
+
+- (void)showHUDWithMessage:(NSString *)string
+{
+    if (_HUD == nil) {
+        _HUD = [[MBProgressHUD alloc] initWithView:self.view];
+        [self.view addSubview:_HUD];
+        _HUD.mode = MBProgressHUDModeText;
+    }
+    _HUD.mode = MBProgressHUDModeText;
+    _HUD.labelText = string;
+    
+    [_HUD showAnimated:YES whileExecutingBlock:^{
+        sleep(3);
+    } completionBlock:^{
+        [_HUD removeFromSuperview];
+    }];
 }
 
 @end
