@@ -109,13 +109,13 @@
 - (void)cancelNew:(id)sender
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UITextFieldTextDidChangeNotification object:nil];
-    [_nDelegate tapCancel:self];
+    [_nDelegate cancelNewFolder:self];
 }
 
 - (void)completeNew:(id)sender
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UITextFieldTextDidChangeNotification object:nil];
-     [_nDelegate tapDone:self];
+     [_nDelegate completeNewFolder:self];
 }
 
 #pragma mark - 实现UITextFieldDelegate方法
@@ -124,7 +124,7 @@
     if (![textField.text isEqualToString:@""]) {
         [textField resignFirstResponder];
         [[NSNotificationCenter defaultCenter] removeObserver:self name:UITextFieldTextDidChangeNotification object:nil];
-         [_nDelegate tapDone:self];
+        [_nDelegate completeNewFolder:self];
         return YES;
     }
     return NO;

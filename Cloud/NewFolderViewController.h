@@ -27,7 +27,7 @@
 
 @optional
 
-- (void)tapCancel:(NewFolderViewController *)nfvc;
-- (void)tapDone:(NewFolderViewController *)nfvc;
+- (void)cancelNewFolder:(NewFolderViewController *)nfvc;
+- (void)completeNewFolder:(NewFolderViewController *)nfvc;
 
 @end
