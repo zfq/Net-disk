@@ -18,6 +18,8 @@
 #import "TBXML.h"
 #import "AFNetworking.h"
 #import "MBProgressHUD.h"
+#import "Reachability.h"
+#import "SSKeychain.h"
 
 @interface MyFileViewController ()<UIActionSheetDelegate,UISearchBarDelegate,SetFolderCellDelegate,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
 {
@@ -27,7 +29,11 @@
     NSMutableData *_receiveData;
     BOOL _receivedNotificaion;
     BOOL _connIsFinished;
+//    BOOL _getFileListFail;
     MBProgressHUD *_HUD;
+    
+    Reachability *_internetReachability;
+    Reachability *_wifiReachability;
 }
 
 @property (nonatomic) BOOL isUnfold;
@@ -43,7 +49,6 @@
 - (NSArray *)sortFilesByModDate: (NSString *)fullPath;
 - (void)changeArrowDirectionForIndexPathofUnfold;
 - (void)addTargetForSetMainContentCell:(SetMainContentCell *)cell;
-//- (void)addTargetForSetFolderCell:(SetFolderCell *)cell;
 
 - (void)setTableViewCellFold;//关闭折叠
 - (void)hideTabBar;
@@ -78,6 +83,7 @@
         
         _receivedNotificaion = NO;
         _connIsFinished = NO;
+//        _getFileListFail = NO;
     }
     return self;
 }
@@ -113,14 +119,12 @@
     NSArray *nils = [[NSBundle mainBundle]loadNibNamed:@"RefreshView" owner:self options:nil];
     self.refreshView = [nils objectAtIndex:0];
     refreshView.frame = CGRectMake(0, -REFRESH_HEADER_HEIGHT, SCREEN_WIDTH, REFRESH_HEADER_HEIGHT);
-    
     [myFileTableView insertSubview:refreshView atIndex:0];
-    
     [refreshView.refreshIndicator stopAnimating];
     
     // 初始刷新
 //    [self refresh];
-    
+    [self addNetworkStateNotification];
 }
 
 #pragma mark - 后台登陆成功 notification
@@ -129,7 +133,7 @@
 //    [self refresh];
     _receivedNotificaion = YES;
     [self startConnectionWithRequest:_request];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:notification.name object:nil];
+//    [[NSNotificationCenter defaultCenter] removeObserver:self name:notification.name object:nil];
 }
 
 #pragma mark - 下拉刷新
@@ -162,7 +166,6 @@
     refreshView.refreshStatusLabel.text = REFRESH_PULL_DOWN_STATUS;
     refreshView.refreshArrowImageView.hidden = NO;
     [refreshView.refreshIndicator stopAnimating];
-    
 }
 
 // 开始，可以触发自己定义的开始方法
@@ -239,10 +242,16 @@
     [self.tabBarController.navigationController setNavigationBarHidden:YES];
     [self.myFileTableView deselectRowAtIndexPath:[self.myFileTableView indexPathForSelectedRow] animated:YES];
     
-    NSString *boolStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"succeedLogin"];
-    if ([boolStr isEqualToString:@"YES"]) {  //只有
-        [self startConnectionWithRequest:_request];
+    if (![self networkReachable]) {
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+        [self createHUDWithCustomView];
+        UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/error.png"];
+        [self showHUDWithImage:img messege:@"当前网络不可用"];
     }
+//    NSString *boolStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"succeedLogin"];
+//    if ([boolStr isEqualToString:@"YES"]) {  //在appdelegate中写入plist firstAppear = YES; 在后台login后改为NO;
+//        [self startConnectionWithRequest:_request];
+//    }
 }
 
 - (void)viewWillDisappear:(BOOL)animated
@@ -1280,7 +1289,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         request.cachePolicy = NSURLRequestReloadIgnoringCacheData;
         request.timeoutInterval = 60;
     }
-//    NSLog(@"当前路径：%@",self.currentPath);
+
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
     NSString *string = [NSString stringWithFormat:@"cndfilelist.cgi?path=%@&filter=all&sortby=name&desc=true&start=1&num=%i&sid=",self.currentPath,MAX_SHOW_NUM];
     NSString *urlString = [NSString stringWithFormat:@"%@%@%@",HOST_URL,string,sid];
@@ -1293,7 +1302,6 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     while (!_connIsFinished) {
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
     }
-    
 }
 
 - (void)parseFileListWithData:(NSData *)data
@@ -1401,7 +1409,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     _HUD.customView = [[UIImageView alloc] initWithImage:image];
     _HUD.labelText = string;
     [_HUD showAnimated:YES whileExecutingBlock:^{
-        sleep(3);
+        sleep(2.5);
     } completionBlock:^{
         [_HUD removeFromSuperview];
         _HUD = nil;
@@ -1425,6 +1433,58 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }];
 }
 
+- (void)addNetworkStateNotification
+{
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reachabilityChanged:) name:kReachabilityChangedNotification object:nil];
+//    _internetReachability = [Reachability reachabilityForInternetConnection];
+//	[_internetReachability startNotifier];
+//    _wifiReachability = [Reachability reachabilityForLocalWiFi];
+//	[_wifiReachability startNotifier];
+}
+
+- (BOOL)networkReachable
+{
+    NetworkStatus wifiStatus = [[Reachability reachabilityForLocalWiFi] currentReachabilityStatus];
+    NetworkStatus internetStatus = [[Reachability reachabilityForInternetConnection] currentReachabilityStatus];
+    if (wifiStatus == NotReachable && internetStatus == NotReachable) {
+        return NO;
+    } else {
+        return YES;
+    }
+}
+
+#pragma mark - NetworkStatus通知消息
+- (void) reachabilityChanged:(NSNotification *)note
+{
+	Reachability* curReach = [note object];
+    NetworkStatus netStatus = [curReach currentReachabilityStatus];
+	NSParameterAssert([curReach isKindOfClass:[Reachability class]]);
+    switch (netStatus)
+    {
+        case NotReachable:
+        {   NSLog(@"我擦");
+            [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+            [self createHUDWithCustomView];
+            UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/error.png"];
+            [self showHUDWithImage:img messege:@"当前网络不可用"];
+            break;
+        }
+        case ReachableViaWWAN:
+        {
+            NSLog(@"2G/3G网络可用！");
+            break;
+        }
+        case ReachableViaWiFi:
+        {
+            NSLog(@"文件页面wifi可用");
+//            if (_getSpaceFail == YES) {
+//                [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+//                [self getAvailebleSpace];
+//            }
+            break;
+        }
+    }
+}
 @end
 
 
