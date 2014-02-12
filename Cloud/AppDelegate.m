@@ -22,6 +22,7 @@
 #import "KKPasscodeLock.h"
 #import "TBXML.h"
 #import "Encryption.h"
+#import "Reachability.h"
 
 @implementation AppDelegate
 
@@ -46,22 +47,22 @@
         [self.window setRootViewController:self.viewController];
     } else {
         [self initTabBarController];
+        
+        //设置navigationBar
         [[UINavigationBar appearance] setBarTintColor:NavigationBarColor];
         [[UINavigationBar appearance] setTintColor:[UIColor whiteColor]];
-        
         NSShadow *shadow = [[NSShadow alloc] init];
         shadow.shadowColor = [UIColor colorWithRed:0.0 green:0.0 blue:0.0 alpha:0.8];
         shadow.shadowOffset = CGSizeMake(0, 1);
         [[UINavigationBar appearance] setTitleTextAttributes:
          [NSDictionary dictionaryWithObjectsAndKeys:[UIColor colorWithRed:245.0/255.0 green:245.0/255.0 blue:245.0/255.0 alpha:1.0], NSForegroundColorAttributeName,nil, NSShadowAttributeName,
           [UIFont boldSystemFontOfSize:30.0], NSFontAttributeName, nil]];
-        
-        //        _navigationController = [[UINavigationController alloc] initWithRootViewController:_tbController];
         [self.window setRootViewController:_tbController];
-        //        NSString *boolStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"succeedLogin"];
-        if (!self.isSuccessLogin) { //[boolStr isEqualToString:@"NO"]
+       
+        if (self.isSuccessLogin == NO && [self networkReachable]) { //[boolStr isEqualToString:@"NO"]
             [self loginAndConnectyWithAccount:account password:password];
         }
+        [self addNetworkStateNotification];
     }
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
@@ -312,7 +313,6 @@
         //通知myFileViewController
         MyFileViewController *vc = [[MyFileViewController alloc] init];
         [[NSNotificationCenter defaultCenter] postNotificationName: kLoginStatusChangedNotification object: vc];
-        
     }
     
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
@@ -337,8 +337,63 @@
                            }];
 }
 
+- (void)addNetworkStateNotification
+{
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reachabilityChanged:) name:kReachabilityChangedNotification object:nil];
+    _internetReachability = [Reachability reachabilityForInternetConnection];
+	[_internetReachability startNotifier];
+    _wifiReachability = [Reachability reachabilityForLocalWiFi];
+	[_wifiReachability startNotifier];
+}
 
+- (BOOL)networkReachable
+{
+    NetworkStatus wifiStatus = [[Reachability reachabilityForLocalWiFi] currentReachabilityStatus];
+    NetworkStatus internetStatus = [[Reachability reachabilityForInternetConnection] currentReachabilityStatus];
+    if (wifiStatus == NotReachable && internetStatus == NotReachable) {
+        return NO;
+    } else {
+        return YES;
+    }
+}
 
+#pragma mark - NetworkStatus通知消息
+- (void) reachabilityChanged:(NSNotification *)note
+{
+	Reachability* curReach = [note object];
+    NetworkStatus netStatus = [curReach currentReachabilityStatus];
+	NSParameterAssert([curReach isKindOfClass:[Reachability class]]);
+    switch (netStatus)
+    {
+        case NotReachable:
+        {
+            NSLog(@"代理3g不可用");
+            break;
+        }
+        case ReachableViaWWAN:
+        {
+            if (!self.isSuccessLogin) {
+                NSDictionary *dictionary = [[SSKeychain accountsForService:ServiceName] objectAtIndex:0];
+                NSString *account = [dictionary objectForKey:@"acct"];
+                NSString *password = [SSKeychain passwordForService:ServiceName account:account];
+                [self loginAndConnectyWithAccount:account password:password];
+            }
+            break;
+            NSLog(@"代理3g可用");
+        }
+        case ReachableViaWiFi:
+        {
+            if (!self.isSuccessLogin) {
+                NSDictionary *dictionary = [[SSKeychain accountsForService:ServiceName] objectAtIndex:0];
+                NSString *account = [dictionary objectForKey:@"acct"];
+                NSString *password = [SSKeychain passwordForService:ServiceName account:account];
+                [self loginAndConnectyWithAccount:account password:password];
+            }
+            NSLog(@"代理wifi可用");
+            break;
+        }
+    }
+}
 @end
 
 
