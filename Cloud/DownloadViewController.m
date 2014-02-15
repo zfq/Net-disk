@@ -66,6 +66,12 @@
     _downloadLabel.font = [UIFont systemFontOfSize:14.0];
 }
 
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+    [self.downloadTableView reloadData];
+}
+
 - (void)didReceiveMemoryWarning
 {
     [super didReceiveMemoryWarning];
@@ -214,6 +220,90 @@
 {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:@"仅移除下记录,不会删除文件" delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:@"确定删除" otherButtonTitles: nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
+}
+
+- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    if (buttonIndex == 0) {
+        
+        NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
+        NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+        UIBarButtonItem *leftItem = self.navigationItem.leftBarButtonItem;
+        
+        if ([leftItem.title isEqualToString:@"全不选"]) {
+            [[DownloadItemStore shareItemStore].downloadingItems removeAllObjects];
+            [[DownloadItemStore shareItemStore].downloadItems removeAllObjects];
+            if (downloadingCounts > 0 && downloadCounts > 0) {
+                [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)] withRowAnimation:UITableViewRowAnimationAutomatic];
+            } else {
+                
+                 [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
+                
+            }
+        } else {
+            [self deleteCellsInTableView];
+        }
+        
+        [self recover];
+    }
+}
+
+- (void)deleteCellsInTableView
+{
+    //        BOOL isExistUploadingCell = NO;
+    NSMutableIndexSet *downloadingIndexes = [[NSMutableIndexSet alloc] init];
+    NSMutableIndexSet *downloadIndexes = [[NSMutableIndexSet alloc] init];
+    for (NSIndexPath *indexpath in self.downloadTableView.indexPathsForSelectedRows) {
+        if (indexpath.section == 0) {
+            [downloadingIndexes addIndex:indexpath.row];
+            //                if (indexpath.row == 0) {
+            //                    isExistUploadingCell = YES;
+            //                    [_requestOperation cancel];
+            //                    _requestOperation = nil;
+            //                }
+        } else {
+            [downloadIndexes addIndex:indexpath.row];
+        }
+    }
+    
+    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+    
+    if (downloadingCounts > 0) {
+        [[DownloadItemStore shareItemStore].downloadingItems removeObjectsAtIndexes:downloadingIndexes];
+    }
+    if (downloadCounts > 0) {
+        [[DownloadItemStore shareItemStore].downloadItems removeObjectsAtIndexes:downloadIndexes];
+    }
+    
+    if (downloadingCounts > 0 && downloadCounts > 0) { //正在下载和已完成下载同时存在
+        if (downloadingIndexes.count == downloadingCounts && downloadIndexes.count != downloadCounts) {  //全选正在下载
+            [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
+        } else if (downloadingIndexes.count != downloadingCounts && downloadIndexes.count == downloadCounts) {
+            [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:1] withRowAnimation:UITableViewRowAnimationAutomatic]; //全选已完成下载
+        } else if (downloadingIndexes.count == downloadingCounts && downloadIndexes.count == downloadCounts) {   //两者同时选中，即全选
+            [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)] withRowAnimation:UITableViewRowAnimationAutomatic];
+        } else {
+            [self.downloadTableView deleteRowsAtIndexPaths:self.downloadTableView.indexPathsForSelectedRows withRowAnimation:UITableViewRowAnimationNone];
+        }
+    } else if (downloadingCounts > 0 && downloadCounts == 0){  //只有正在下载
+        if (downloadingIndexes.count == downloadingCounts) {
+            [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
+        } else {
+            [self.downloadTableView deleteRowsAtIndexPaths:self.downloadTableView.indexPathsForSelectedRows withRowAnimation:UITableViewRowAnimationNone];
+        }
+    } else if (downloadingCounts == 0 && downloadCounts > 0) {  //只有已完成下载
+        if (downloadIndexes.count == downloadCounts) {
+            [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
+        } else {
+            [self.downloadTableView deleteRowsAtIndexPaths:self.downloadTableView.indexPathsForSelectedRows withRowAnimation:UITableViewRowAnimationNone];
+        }
+    }
+    
+    
+    //        if (isExistUploadingCell && [UploadItemStore sharedStore].uploadingItems.count>0) {
+    //            [self continueUploadForView:self.uploadTableView];
+    //        }
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
