@@ -56,13 +56,14 @@
     
     /*添加文件夹图标*/
     UIImage *folder = [UIImage imageNamed:@"mainFolder.png"];
-    UIImageView *folderImage = [[UIImageView alloc] initWithFrame:CGRectMake(10.0, (cellHeight-folder.size.height)/2.0, folder.size.width, folder.size.height)];
-    folderImage.image = folder;
-    [cellView addSubview:folderImage];
+    self.folderImage = folder;
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:CGRectMake(10.0, (cellHeight-folder.size.height)/2.0, folder.size.width, folder.size.height)];
+    imageView.image = self.folderImage;
+    [cellView addSubview:imageView];
     
     /*添加UITextField*/
     CGFloat fontHeight = [[UIFont systemFontOfSize:12] lineHeight]+8;
-    folderName = [[UITextField alloc] initWithFrame:CGRectMake(folderImage.frame.origin.x+folderImage.frame.size.width+15.0, (cellView.frame.size.height-fontHeight)/2.0, 240, fontHeight)];
+    folderName = [[UITextField alloc] initWithFrame:CGRectMake(imageView.frame.origin.x+imageView.frame.size.width+15.0, (cellView.frame.size.height-fontHeight)/2.0, 240, fontHeight)];
     folderName.placeholder = @"输入新名称";
     
     folderName.text = @"";
@@ -81,7 +82,7 @@
 {
     [super viewWillAppear:animated];
     folderName.text = @"";
-    [self performSelector:@selector(dismissKeyBoard:) withObject:folderName afterDelay:0.3]; //让键盘延迟显示
+    [self performSelector:@selector(showKeyBoard:) withObject:folderName afterDelay:0.3]; //让键盘延迟显示
 }
 
 - (void)valueChanged
@@ -92,8 +93,8 @@
         self.navigationItem.rightBarButtonItem.enabled = YES;
 }
 
-#pragma mark 让键盘消失
-- (void)dismissKeyBoard:(id)sender
+#pragma mark 让键盘显示
+- (void)showKeyBoard:(id)sender
 {
     [sender becomeFirstResponder];
 }

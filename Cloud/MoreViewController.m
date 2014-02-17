@@ -93,11 +93,11 @@
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reachabilityChanged:) name:kReachabilityChangedNotification object:nil];
     
-    _internetReachability = [Reachability reachabilityForInternetConnection];
-	[_internetReachability startNotifier];
-    
-    _wifiReachability = [Reachability reachabilityForLocalWiFi];
-	[_wifiReachability startNotifier];
+//    _internetReachability = [Reachability reachabilityForInternetConnection];
+//	[_internetReachability startNotifier];
+//    
+//    _wifiReachability = [Reachability reachabilityForLocalWiFi];
+//	[_wifiReachability startNotifier];
     
     NetworkStatus wifiStatus = [[Reachability reachabilityForLocalWiFi] currentReachabilityStatus];
     NetworkStatus internetStatus = [[Reachability reachabilityForInternetConnection] currentReachabilityStatus];
@@ -657,7 +657,7 @@
     HUD.labelText = string;
     
     [HUD showAnimated:YES whileExecutingBlock:^{
-        sleep(3);
+        sleep(2.5);
     } completionBlock:^{
         [HUD removeFromSuperview];
         HUD = nil;
@@ -685,8 +685,8 @@
         //更新cell
         [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
     }
-
 }
+
 #pragma mark - NetworkStatus通知消息
 - (void) reachabilityChanged:(NSNotification *)note
 {
@@ -705,7 +705,7 @@
         }
         case ReachableViaWWAN:
         {
-            NSLog(@"2G/3G网络可用！");
+            NSLog(@"更多2G/3G网络可用！");
             break;
         }
         case ReachableViaWiFi:

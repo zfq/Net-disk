@@ -12,9 +12,13 @@
 @class ICETutorialController;
 @class LoginViewController;
 @class TBXML;
+@class Reachability;
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate,KKPasscodeViewControllerDelegate>
-
+{
+    Reachability *_internetReachability;
+    Reachability *_wifiReachability;
+}
 @property (strong, nonatomic) UIWindow *window;
 @property (strong, nonatomic) ICETutorialController *viewController;
 @property (strong, nonatomic) LoginViewController *loginViewController;
@@ -27,4 +31,5 @@
 
 - (void)initLoginView;
 - (void)initTabBarController;
+//- (void)loginAndConnectyWithAccount:(NSString *)account password:(NSString *)password;
 @end

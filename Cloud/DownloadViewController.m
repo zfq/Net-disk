@@ -14,7 +14,10 @@
 #import "MDRadialProgressTheme.h"
 #import "MDRadialProgressLabel.h"
 #import "UploadCell.h"
+#import "DownloadCell.h"
 #import "MainContentItem.h"
+#import "Constant.h"
+#import "TBXML.h"
 
 @interface DownloadViewController ()<UIActionSheetDelegate,UITableViewDelegate,UITableViewDataSource>
 {
@@ -22,7 +25,10 @@
     AFHTTPRequestOperation *_requestOperation;
     
     NSInteger _currentProgressCounter;
+    NSInteger _currentDownloadingRow;
+    
     MDRadialProgressView *_progressView;
+    UIButton *_progressButton;
     UIView *_bottomDeleteView;
     
     UILabel *_downloadingLabel;  //正在下载数
@@ -41,9 +47,9 @@
         self.tabBarItem = tabBarItem;
         self.navigationItem.title = @"下载列表";
         UIBarButtonItem *rightButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"多选" style:UIBarButtonItemStylePlain target:self action:@selector(mutableSelect:)];
-        
-        
         self.navigationItem.rightBarButtonItem = rightButtonItem;
+        
+        _currentProgressCounter = 0;
     }
     return self;
 }
@@ -54,8 +60,10 @@
     // Do any additional setup after loading the view from its nib.
     [self setExtraCellLineHidden:self.downloadTableView];
     
-    UINib *nib = [UINib nibWithNibName:@"UploadCell" bundle:nil];
-    [self.downloadTableView registerNib:nib forCellReuseIdentifier:@"UploadCell"];
+    UINib *uploadCellNib = [UINib nibWithNibName:@"UploadCell" bundle:nil];
+    [self.downloadTableView registerNib:uploadCellNib forCellReuseIdentifier:@"UploadCell"];
+    UINib *downloadCellNib = [UINib nibWithNibName:@"DownloadCell" bundle:nil];
+    [self.downloadTableView registerNib:downloadCellNib forCellReuseIdentifier:@"DownloadCell"];
     
     CGFloat width = self.downloadTableView.bounds.size.width;
     _downloadingLabel = [[UILabel alloc] initWithFrame:CGRectMake(15.0, 0.0, width, 20.0)];
@@ -64,6 +72,8 @@
     _downloadLabel = [[UILabel alloc] initWithFrame:CGRectMake(15.0, 0.0, width, 20.0)];
     _downloadLabel.textColor = [UIColor colorWithRed:0.265 green:0.294 blue:0.367 alpha:1];
     _downloadLabel.font = [UIFont systemFontOfSize:14.0];
+    
+//     _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -395,10 +405,9 @@
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    UploadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"UploadCell"];
 //    [self removeProgressViewInTableViewCell:cell];
-    
     if (indexPath.section == 0) {
+        DownloadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"DownloadCell"];
         MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:indexPath.row];
         cell.thumbnailView.image = item.thumbnailImage;
         cell.nameLabel.text = item.fileName;
@@ -408,12 +417,32 @@
                 cell.dateLabel.text = item.fileSize;
             else
                 cell.dateLabel.text = @"正在等待网络…";
+            if (!_progressButton) {
+                _progressButton = [UIButton buttonWithType:UIButtonTypeCustom];
+                _progressButton.frame = CGRectMake(0,0,40,40);
+                _progressButton.selected = NO;
+                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_normal"] forState:UIControlStateNormal];
+                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_pressed"] forState:UIControlStateHighlighted];
+                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_download_normal"] forState:UIControlStateSelected];
+                [_progressButton addTarget:self action:@selector(tapProgressButton:) forControlEvents:UIControlEventTouchUpInside];
+            }
+            if (!_progressView) {
+                _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
+                UITapGestureRecognizer *recognizer = [[UITapGestureRecognizer alloc] initWithTarget:_progressView action:@selector(tapProgressView:)];
+                [_progressView addGestureRecognizer:recognizer];
+            }
+            if ([self internetIsReachable]) {
+              
+            }
             //添加进度条
-//            _progressView.progressCounter = _currentProgressCounter;
-//            cell.accessoryView = _progressView;
-            
+            _progressView.progressCounter = _currentProgressCounter;
+            _progressButton.hidden = YES;
+            [_progressView addSubview:_progressButton];
+            cell.accessoryView = _progressView;
+//            cell.accessoryView = _progressButton;
 //            if (_shouldBegin == YES) {
-//                [self uploadFileWithAsset:asset AtIndexPath:indexPath];
+            _currentDownloadingRow = indexPath.row;
+            [self downloadItem:item];
 //                _shouldBegin = NO;
 //            }
         } else {
@@ -421,6 +450,7 @@
         }
         return cell;
     } else {
+        UploadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"UploadCell"];
         MainContentItem *item = [[DownloadItemStore shareItemStore].downloadItems objectAtIndex:indexPath.row];
         cell.thumbnailView.image = item.thumbnailImage;
         cell.nameLabel.text = item.fileName;
@@ -434,6 +464,135 @@
         
         return cell;
     }
+}
+
+- (void)tapProgressButton:(id)sender
+{
+    UIButton *btn = (UIButton*)sender;
+    if (btn.selected) {
+        btn.selected = NO;
+        //如果网络可用 该行开始下载，
+    } else {
+        btn.selected = YES;
+        //该行暂停
+    }
+}
+
+- (void)tapProgressView:(UITapGestureRecognizer *)recognizer
+{
+    _progressButton.hidden = NO;
+}
+
+- (void)downloadItem:(MainContentItem *)item
+{
+    if (!_request) {
+        _request = [[NSMutableURLRequest alloc] init];
+        _request.HTTPMethod = @"GET";
+        _request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        _request.timeoutInterval = 30;
+    }
+    NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
+    NSString *urlString = [NSString stringWithFormat:@"%@cnddownload.cgi?path=%@&name=%@&sid=%@",HOST_URL,item.currentFolderPath,item.fileName,sid];
+    NSLog(@"%@",urlString);
+    _request.URL = [NSURL URLWithString:urlString];
+    
+    _requestOperation = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
+    __weak typeof(self) weakSelf = self;
+    NSInteger row = [[DownloadItemStore shareItemStore].downloadingItems indexOfObject:item];
+    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:row inSection:0];
+    _currentDownloadingRow = row;
+    
+    [_requestOperation setDownloadProgressBlock:^(NSUInteger bytesRead, long long totalBytesRead, long long totalBytesExpectedToRead) {
+         NSLog(@"bytesRead: %u, totalBytesRead: %lli, totalBytesExpectedToRead: %lli", bytesRead, totalBytesRead, totalBytesExpectedToRead);
+//        [weakSelf updateProgressViewWithComplete:totalBytesRead totalToRead:totalBytesExpectedToRead atIndexPath:indexPath];  //刷新进度条
+    }];
+    [_requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [weakSelf parseDownloadXMLWithData:operation.responseData];
+        [operation cancel];
+        operation = nil;
+        
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if (operation != nil) {
+            [operation cancel];
+            operation = nil;
+        }
+        
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+        if ([error code] != NSURLErrorCancelled) {
+            NSLog(@"下载失败:%@",error.localizedDescription);
+        }
+    }];
+    
+    [_requestOperation start];
+    
+
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+}
+
+#pragma mark 刷新进度条
+- (void)updateProgressViewWithComplete:(long long)totalByteRead totalToRead:(long long)totalBytesExpectedToRead atIndexPath:(NSIndexPath *)indexPath
+{
+    MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:indexPath.row];
+    DownloadCell *cell = (DownloadCell*)[self.downloadTableView cellForRowAtIndexPath:indexPath];
+    MDRadialProgressView *progressView = nil;
+    
+    progressView = (MDRadialProgressView*)cell.accessoryView;
+    _currentProgressCounter =  (NSInteger)((totalByteRead*100)/totalBytesExpectedToRead);    //0~100内整数
+    NSLog(@"%lli %lli %i",totalByteRead,totalBytesExpectedToRead,_currentProgressCounter);
+  
+//    NSLog(@"%i",_currentProgressCounter);
+    progressView.progressCounter = _currentProgressCounter;
+    
+//    cell.dateLabel.text = item.fileSize;
+    if (totalByteRead < 1000 ) {      //近似< 1K
+        cell.dateLabel.text = [NSString stringWithFormat:@"%iB/%@",(int)totalByteRead,item.fileSize];
+    } else if (totalByteRead >=1000 && totalByteRead <1024000) { //近似<1MB
+        cell.dateLabel.text = [NSString stringWithFormat:@"%iK/%@",(int)(totalByteRead/1024),item.fileSize];
+    } else if (totalByteRead >= 1024000 && totalByteRead <1024000000) { //近似>1MB
+        cell.dateLabel.text = [NSString stringWithFormat:@"%.2fM/%@",totalByteRead/1024000.0,item.fileSize];
+    } else {
+        cell.dateLabel.text = [NSString stringWithFormat:@"%.2G/%@",totalByteRead/1024000000.0,item.fileSize];
+    }
+}
+
+- (void)parseDownloadXMLWithData:(NSData *)data
+{
+    UIImage *image = [UIImage imageWithData:data];
+    MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:_currentDownloadingRow];
+    [[DownloadItemStore shareItemStore].downloadingItems removeObject:item];
+    [[DownloadItemStore shareItemStore].downloadItems addObject:item];
+    
+    //更新tableView和itemStore
+    NSIndexPath *firstIndexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+//    if (downloadingCounts == 0 && downloadCounts==1) { //downloadingCounts在这里一定>=1
+//        
+//        [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
+//        [self.downloadTableView insertRowsAtIndexPaths:@[firstIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+//    } else {
+//        NSIndexPath *deleteIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:0];
+//        NSIndexPath *insertIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:1];
+//        [self.downloadTableView deleteRowsAtIndexPaths:@[deleteIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+//        [self.downloadTableView insertRowsAtIndexPaths:@[insertIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+//    }
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+//    UIImageWriteToSavedPhotosAlbum(image, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
+}
+
+- (void)image: (UIImage *) image didFinishSavingWithError: (NSError *) error
+  contextInfo: (void *) contextInfo;
+{
+//    [self createHUD];
+//    UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
+    
+    if (error != NULL) {
+        NSLog(@"保存照片失败：%@",error.localizedDescription);
+//        [self showHUDWithImage:img messege:@"照片保存失败"];
+    }else{
+        NSLog(@"保存照片成功");
+//        [self showHUDWithImage:img messege:@"照片保存成功"];
+    };
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -485,6 +644,23 @@
     if (tableView.isEditing) {
         [self setDeleteButtonWithCount:tableView.indexPathsForSelectedRows.count];
     }
+}
+
+#pragma mark - 创建进度条
+- (MDRadialProgressView *)progressViewWithFrame:(CGRect)frame
+{
+	MDRadialProgressView *view = [[MDRadialProgressView alloc] initWithFrame:frame];
+    
+    view.progressTotal = 100;
+    view.progressCounter = 0; //放在外面
+	view.theme.completedColor = [UIColor colorWithRed:30/255.0 green:144/255.0 blue:255/255.0 alpha:1.0];
+	view.theme.incompletedColor = [UIColor colorWithRed:247/255.0 green:247/255.0 blue:247/255.0 alpha:1.0];
+    view.theme.thickness = 10;
+    view.theme.sliceDividerHidden = YES;
+	view.theme.centerColor = [UIColor whiteColor];
+    view.label.textColor = view.theme.completedColor ;
+    
+	return view;
 }
 
 #pragma mark - 当前网络状态

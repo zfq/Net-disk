@@ -13,6 +13,8 @@
 #import "SetFolderCell.h"
 #import "MainContentItem.h"
 #import "MyFileItemStore.h"
+#import "DownloadItemStore.h"
+#import "DownloadViewController.h"
 #import "PhotoBrowser.h"
 #import "Constant.h"
 #import "TBXML.h"
@@ -29,7 +31,6 @@
     NSMutableData *_receiveData;
     BOOL _receivedNotificaion;
     BOOL _connIsFinished;
-//    BOOL _getFileListFail;
     MBProgressHUD *_HUD;
     
     Reachability *_internetReachability;
@@ -42,7 +43,6 @@
 @property (nonatomic,strong) UIToolbar *toolBar;
 @property (nonatomic,strong) NSMutableArray *selectIndexPaths;
 
-- (void)refresh;
 - (void)stopLoading;
 - (void)startLoading;
 
@@ -83,7 +83,6 @@
         
         _receivedNotificaion = NO;
         _connIsFinished = NO;
-//        _getFileListFail = NO;
     }
     return self;
 }
@@ -92,7 +91,7 @@
 {
     UIView *view = [[UIView alloc] init];
     view.backgroundColor = [UIColor clearColor];
-    [self.myFileTableView setTableFooterView:view];
+    [tableView setTableFooterView:view];
 }
 
 - (void)viewDidLoad
@@ -118,12 +117,10 @@
     
     NSArray *nils = [[NSBundle mainBundle]loadNibNamed:@"RefreshView" owner:self options:nil];
     self.refreshView = [nils objectAtIndex:0];
-    refreshView.frame = CGRectMake(0, -REFRESH_HEADER_HEIGHT, SCREEN_WIDTH, REFRESH_HEADER_HEIGHT);
-    [myFileTableView insertSubview:refreshView atIndex:0];
-    [refreshView.refreshIndicator stopAnimating];
+    self.refreshView.frame = CGRectMake(0, -REFRESH_HEADER_HEIGHT, SCREEN_WIDTH, REFRESH_HEADER_HEIGHT);
+    [self.myFileTableView insertSubview:refreshView atIndex:0];
+    [self.refreshView.refreshIndicator stopAnimating];
     
-    // 初始刷新
-//    [self refresh];
     [self addNetworkStateNotification];
 }
 
@@ -184,15 +181,8 @@
     [refreshView.refreshIndicator startAnimating];
     [UIView commitAnimations];
     
-    // 模拟3秒后停止
-    [self performSelector:@selector(stopLoading) withObject:nil afterDelay:3];
-}
-
-// 刷新
-- (void)refresh
-{
-    [self startLoading];
     [self startConnectionWithRequest:_request];
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
 }
 
 #pragma mark - UIScrollView
@@ -231,7 +221,7 @@
         return;
     refreshView.isDragging = NO;
     if (scrollView.contentOffset.y <= -REFRESH_HEADER_HEIGHT) {
-        [self refresh];
+        [self startLoading];
     }
 }
 
@@ -248,10 +238,10 @@
         UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/error.png"];
         [self showHUDWithImage:img messege:@"当前网络不可用"];
     }
-//    NSString *boolStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"succeedLogin"];
-//    if ([boolStr isEqualToString:@"YES"]) {  //在appdelegate中写入plist firstAppear = YES; 在后台login后改为NO;
-//        [self startConnectionWithRequest:_request];
-//    }
+    NSString *boolStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"succeedLogin"];
+    if ([boolStr isEqualToString:@"YES"]) {  //在appdelegate中写入plist firstAppear = YES; 在后台login后改为NO;
+        [self startConnectionWithRequest:_request];
+    }
 }
 
 - (void)viewWillDisappear:(BOOL)animated
@@ -327,7 +317,6 @@
         [self hideTabBar];
     }
 }
-
 
 #pragma mark 关闭折叠
 - (void)setTableViewCellFold
@@ -487,15 +476,6 @@
 	return [NSArray arrayWithObjects:nil];
 }
 
-#pragma mark - 重建列表 以后用解析的结果来替换
-//- (void)rebuildFileList:(NSString *)dirPath //当前路径
-//{
-    /*
-     解析返回文件列表,将每个cell放在itemDictionaryStore中
-     */
-//}
-
-
 - (void)rebuildFileList:(NSString *)dirPath
 {
     //获取这个路径里的所有文件，相当于文件名,allFiles要按创建日期排序
@@ -567,21 +547,7 @@
         tempItem = [self.itemDictionaryStore objectForKey:itemName];
     }
     
-    [self createDirWithName:itemName Request:_request];
-//    NSString *itemPath = [self.currentPath stringByAppendingPathComponent:itemName];
-//    NSDate *currentDate = [NSDate date];
-//    [[NSFileManager defaultManager] createDirectoryAtPath:itemPath withIntermediateDirectories:YES attributes:nil error:nil];
-    
-//    MainContentItem *newItem = [itemSotre createFolderWithName:itemName date:currentDate folderPath:self.currentPath isDir:YES];
-//    [self.itemSotre.allItems insertObject:newItem atIndex:0];
-//    NSInteger lastRow = [itemSotre.allItems indexOfObject:newItem];
-//    [self rebuildFileList:self.currentPath];
-    
-//    [self.myFileTableView beginUpdates];
-//    NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:1];
-//    [self.myFileTableView insertSections:indexSet withRowAnimation:UITableViewRowAnimationAutomatic];
-//    [self.myFileTableView endUpdates];
-
+    [self createDirWithName:itemName];
     [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
 }
 
@@ -596,16 +562,16 @@
     [self.myFileTableView endUpdates];
 }
 
-- (void)createDirWithName:(NSString *)folderName Request:(NSMutableURLRequest *)request
+- (void)createDirWithName:(NSString *)folderName
 {
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
-    NSString *urlString = [NSString stringWithFormat:@"%@cndcreatedir.cgi?path=%@&name=%@&sid=%@",HOST_URL,self.currentPath,folderName,sid];
-    if (!request) {
-        request = [[NSMutableURLRequest alloc] init];
-        [request setHTTPMethod:@"GET"];
-        [request setTimeoutInterval:60];
+    NSString *urlString = [NSString stringWithFormat:@"%@cndcreatdir.cgi?path=%@&name=%@&sid=%@",HOST_URL,self.currentPath,folderName,sid];
+    if (!_request) {
+        _request = [[NSMutableURLRequest alloc] init];
+        [_request setHTTPMethod:@"GET"];
+        [_request setTimeoutInterval:60];
     }
-    request.URL = [NSURL URLWithString:urlString];
+    _request.URL = [NSURL URLWithString:urlString];
     AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
     [requestOperaton setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         [self parseCreateDirResultWithData:operation.responseData name:folderName];
@@ -1078,7 +1044,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //更多操作
 - (void)moreFile:(id)sender
 {
-    UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",nil];
+    UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",@"复制",nil];
     actionSheet.tag = 1014;
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
@@ -1201,11 +1167,35 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     if (self.toolBar != nil) {
         [self showTabBar];
     }
-
 }
 
 - (void)moreFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
-{}
+{
+    MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+//    MainContentCell *cell = (MainContentCell*)[self.myFileTableView cellForRowAtIndexPath:self.selectIndex];
+    switch (buttonIndex) {
+        case 0:{        //下载
+            [[DownloadItemStore shareItemStore].downloadingItems addObject:item];
+            NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore shareItemStore].downloadingItems.count];
+            [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
+            break;
+        }
+        case 1:{        //重命名
+//            NewFolderViewController *vc = [[NewFolderViewController alloc] init];
+//            vc.folderName.text = cell.nameLabel.text;
+//            nfvc.
+            break;
+        }
+        case 2:{        //移动
+            break;
+        }
+        case 3:{        //复制
+            break;
+        }
+        default:
+            break;
+    }
+}
 
 #pragma mark - 删除服务器端文件
 - (void)requestDeleteFile:(NSArray *)nameArray
@@ -1325,7 +1315,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     
     NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
     [dateFormatter setDateFormat:@"yyyy-MM-dd HH:mm"];
-    while (fileNode) {
+    while (fileNode) {                                  
         NSString *fileName = [TBXML valueOfAttributeNamed:@"fname" forElement:fileNode];
         NSString *fileSize = [TBXML valueOfAttributeNamed:@"fsize" forElement:fileNode];
         NSString *fileDate = [TBXML valueOfAttributeNamed:@"fdate" forElement:fileNode];
@@ -1386,7 +1376,10 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     _connIsFinished = YES;
     _connection = nil;
-//    NSLog(@"%@",[[NSString alloc] initWithData:_receiveData encoding:NSUTF8StringEncoding]);
+    if (self.refreshView.isLoading) {
+        [self stopLoading];
+    }
+    
     [self parseFileListWithData:_receiveData];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
@@ -1462,7 +1455,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     switch (netStatus)
     {
         case NotReachable:
-        {   NSLog(@"我擦");
+        {
             [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
             [self createHUDWithCustomView];
             UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/error.png"];

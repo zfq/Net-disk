@@ -18,6 +18,7 @@
 @property (nonatomic,weak) id<NewFolderViewControllerDelegate> nDelegate;
 
 @property (nonatomic,strong) UIView *cellView;
+@property (nonatomic,strong) UIImage *folderImage;
 @property (nonatomic,strong) UITextField *folderName;
 
 - (IBAction)tapBackground:(id)sender;

@@ -12,6 +12,7 @@
 #import "RefreshView.h"
 
 @class MyFileItemStore;
+@protocol MyFileViewControllerDelegate;
 @interface MyFileViewController : UIViewController <UITableViewDelegate,UITableViewDataSource,
 FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDelegate>
 {
@@ -30,6 +31,8 @@ FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDele
 @property (nonatomic,strong) NSString *currentPath;
 @property (nonatomic,strong) NSString *navTitle;
 
+@property (nonatomic,weak) id<MyFileViewControllerDelegate> mfvcDelegate;
+
 - (MyFileViewController *)initWithDirectoryAtPath:(NSString *)dirPath;
 - (void)rebuildFileList:(NSString *)dirPath;
 
@@ -37,5 +40,11 @@ FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDele
 - (void)showMenuView:(id)sender withEvent:(UIEvent*)senderEvent;
 - (void)mutableSelect:(id)sender;
 - (void)removeMenuView;
+
+@end
+
+@protocol MyFileViewControllerDelegate <NSObject>
+@optional
+- (void)downloadItem:(MyFileViewController *)viewController;
 
 @end

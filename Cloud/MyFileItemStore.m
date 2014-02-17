@@ -38,8 +38,8 @@
     item.dateCreated = createdDate;
     item.currentFolderPath = path;
     item.isDir = dir;
-    
-    [self.allItems addObject:item];
+    item.fileProperty = kFilePropertyDir;
+//    [self.allItems addObject:item];
 
     return item;
 }

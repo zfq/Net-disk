@@ -308,11 +308,11 @@
         NSLog(@"connecty失败");
     } else {
         //        self.isSuccessLogin = YES;
-        [[NSUserDefaults standardUserDefaults] setObject:@"YES" forKey:@"succeedLogin"];
         NSLog(@"一切OK");
         //通知myFileViewController
         MyFileViewController *vc = [[MyFileViewController alloc] init];
         [[NSNotificationCenter defaultCenter] postNotificationName: kLoginStatusChangedNotification object: vc];
+        [[NSUserDefaults standardUserDefaults] setObject:@"YES" forKey:@"succeedLogin"];
     }
     
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;

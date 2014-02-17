@@ -464,7 +464,7 @@
     _requestOperation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
     __weak typeof(self) weakSelf = self;
     [_requestOperation setUploadProgressBlock:^(NSUInteger bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite) {
-        NSInteger progressCounter = (totalBytesWritten*100)/totalBytesExpectedToWrite;
+        NSInteger progressCounter = (int)((totalBytesWritten*100)/totalBytesExpectedToWrite);
         [weakSelf updateProgressViewWithComplete:progressCounter atIndexPath:indexPath];  //刷新进度条
     }];
     
@@ -483,12 +483,10 @@
         if ([error code] != NSURLErrorCancelled) {
              NSLog(@"上传失败:%@",error);
         }
-       
     }];
     
     [_requestOperation start];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
-    
 }
 
 #pragma mark - 解析上传结果
@@ -665,8 +663,8 @@
 //    _internetReachability = [Reachability reachabilityForInternetConnection];
 //	[_internetReachability startNotifier];
     
-    _wifiReachability = [Reachability reachabilityForLocalWiFi];
-	[_wifiReachability startNotifier];
+//    _wifiReachability = [Reachability reachabilityForLocalWiFi];
+//	[_wifiReachability startNotifier];
 }
 
 - (void)reachabilityChanged:(NSNotification *)note
@@ -687,7 +685,7 @@
         }
         case ReachableViaWWAN:
         {
-            NSLog(@"2G/3G网络可用！");
+            NSLog(@"上传2G/3G网络可用！");
             break;
         }
         case ReachableViaWiFi:
