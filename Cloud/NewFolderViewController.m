@@ -27,11 +27,14 @@
         UIBarButtonItem *rightButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"完成" style:UIBarButtonItemStylePlain target:self action:@selector(completeNew:)];
         self.navigationItem.leftBarButtonItem = leftButtonItem;
         self.navigationItem.rightBarButtonItem = rightButtonItem;
-        self.navigationItem.rightBarButtonItem.enabled = NO;
         self.navigationItem.title = @"新建文件夹";
+        
+        self.folderName = [[UITextField alloc] init];
+        self.folderName.placeholder = @"输入新名称";
     }
     return self;
 }
+
 
 - (void)viewDidLoad
 {
@@ -55,18 +58,20 @@
     layer.shadowOpacity = 1.0; //必须设置，因为默认是0
     
     /*添加文件夹图标*/
-    UIImage *folder = [UIImage imageNamed:@"mainFolder.png"];
-    self.folderImage = folder;
-    UIImageView *imageView = [[UIImageView alloc] initWithFrame:CGRectMake(10.0, (cellHeight-folder.size.height)/2.0, folder.size.width, folder.size.height)];
+    if (!self.folderImage) {
+        self.folderImage = [UIImage imageNamed:@"mainFolder"];
+    }
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:CGRectMake(10.0, (cellHeight-self.folderImage.size.height)/2.0, self.folderImage.size.width, self.folderImage.size.height)];
     imageView.image = self.folderImage;
     [cellView addSubview:imageView];
     
     /*添加UITextField*/
+    if ([self.folderName.text isEqualToString:@""]) {
+        self.navigationItem.rightBarButtonItem.enabled = NO;
+    }
     CGFloat fontHeight = [[UIFont systemFontOfSize:12] lineHeight]+8;
-    folderName = [[UITextField alloc] initWithFrame:CGRectMake(imageView.frame.origin.x+imageView.frame.size.width+15.0, (cellView.frame.size.height-fontHeight)/2.0, 240, fontHeight)];
-    folderName.placeholder = @"输入新名称";
+    self.folderName.frame = CGRectMake(imageView.frame.origin.x+imageView.frame.size.width+15.0, (cellView.frame.size.height-fontHeight)/2.0, 240, fontHeight);
     
-    folderName.text = @"";
     folderName.clearButtonMode = UITextFieldViewModeWhileEditing;
     folderName.delegate = self;
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -81,7 +86,7 @@
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
-    folderName.text = @"";
+//    folderName.text = @"";
     [self performSelector:@selector(showKeyBoard:) withObject:folderName afterDelay:0.3]; //让键盘延迟显示
 }
 
