@@ -17,7 +17,7 @@
 FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDelegate>
 {
     FQMenuViewController *mvc;
-    NewFolderViewController *nfvc;
+//    NewFolderViewController *nfvc;
     UITapGestureRecognizer *gestureRecognizer;
 }
 

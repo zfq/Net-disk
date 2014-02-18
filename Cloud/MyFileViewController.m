@@ -26,7 +26,6 @@
 @interface MyFileViewController ()<UIActionSheetDelegate,UISearchBarDelegate,SetFolderCellDelegate,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
 {
     CGFloat _newFolderBtnOriginX;
-    NSURLConnection *_connection;
     NSMutableURLRequest *_request;
     NSMutableData *_receiveData;
     BOOL _receivedNotificaion;
@@ -127,10 +126,9 @@
 #pragma mark - 后台登陆成功 notification
 - (void)getFileList:(NSNotification *)notification
 {
-//    [self refresh];
     _receivedNotificaion = YES;
     [self startConnectionWithRequest:_request];
-//    [[NSNotificationCenter defaultCenter] removeObserver:self name:notification.name object:nil];
+//
 }
 
 #pragma mark - 下拉刷新
@@ -165,6 +163,13 @@
     [refreshView.refreshIndicator stopAnimating];
 }
 
+- (void)refresh
+{
+    [self startLoading];
+    _connIsFinished = NO;
+    [self startConnectionWithRequest:_request];
+}
+
 // 开始，可以触发自己定义的开始方法
 - (void)startLoading
 {
@@ -180,16 +185,14 @@
     refreshView.refreshArrowImageView.hidden = YES;
     [refreshView.refreshIndicator startAnimating];
     [UIView commitAnimations];
-    
-    [self startConnectionWithRequest:_request];
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
 }
 
 #pragma mark - UIScrollView
 // 刚拖动的时候
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
-    if (refreshView.isLoading) return;
+    if (refreshView.isLoading)
+        return;
     refreshView.isDragging = YES;
 }
 // 拖动过程中
@@ -216,12 +219,13 @@
     }
 }
 // 拖动结束后
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
     if (refreshView.isLoading)
         return;
     refreshView.isDragging = NO;
     if (scrollView.contentOffset.y <= -REFRESH_HEADER_HEIGHT) {
-        [self startLoading];
+        [self refresh];
     }
 }
 
@@ -257,8 +261,9 @@
 {
     [super didReceiveMemoryWarning];
     // Dispose of any resources that can be recreated.
-    nfvc = nil;
+//    nfvc = nil;
     [self setRefreshView:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:kLoginStatusChangedNotification object:nil];
 }
 
 #pragma mark - 弹出菜单(全部)
@@ -360,7 +365,6 @@
                                                                                       action:nil];
             _toolBar.items = @[downloadBi,flexItem,shareBi,flexItem,moveBi,flexItem,deleteBi];
             [view addSubview:_toolBar];
-
         }
     }
     [UIView commitAnimations];
@@ -522,12 +526,16 @@
 #pragma mark 新建文件夹
 - (void)newFolder:(id)sender
 {
-    if (!nfvc) {
-        nfvc = [[NewFolderViewController alloc] init];
-                nfvc.nDelegate = self;
-    }
-    
-    UINavigationController *nvc = [[UINavigationController alloc] initWithRootViewController:nfvc];
+//    if (!nfvc) {
+//        nfvc = [[NewFolderViewController alloc] init];
+//                nfvc.nDelegate = self;
+//        
+//    }
+//    nfvc.folderImage = [UIImage imageNamed:@"mainFolder"];
+    NewFolderViewController *newVC = [[NewFolderViewController alloc] init];
+    newVC.nDelegate = self;
+    newVC.folderName.text = @"新建文件夹";
+    UINavigationController *nvc = [[UINavigationController alloc] initWithRootViewController:newVC];
     [self.navigationController presentViewController:nvc animated:YES completion:nil];
 }
 
@@ -566,12 +574,15 @@
 {
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
     NSString *urlString = [NSString stringWithFormat:@"%@cndcreatdir.cgi?path=%@&name=%@&sid=%@",HOST_URL,self.currentPath,folderName,sid];
+    NSStringEncoding enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *str1 = [urlString stringByAddingPercentEscapesUsingEncoding:enc];
+   
     if (!_request) {
         _request = [[NSMutableURLRequest alloc] init];
         [_request setHTTPMethod:@"GET"];
         [_request setTimeoutInterval:60];
     }
-    _request.URL = [NSURL URLWithString:urlString];
+    _request.URL = [NSURL URLWithString:str1];
     AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
     [requestOperaton setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         [self parseCreateDirResultWithData:operation.responseData name:folderName];
@@ -585,8 +596,10 @@
 
 - (void)parseCreateDirResultWithData:(NSData *)data name:(NSString *)folderName
 {
+    NSStringEncoding encoding = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *dataString = [[NSString alloc] initWithData:data encoding:encoding];
     NSError *error = nil;
-    TBXML *xml = [[TBXML alloc] initWithXMLData:data error:&error];
+    TBXML *xml = [[TBXML alloc] initWithXMLString:dataString error:&error];
     if (error) {
         NSLog(@"解析文件错误:%@",[error localizedDescription]);
         return;
@@ -597,7 +610,9 @@
     NSString *errorNum = [NSString stringWithCString:statusNode->firstAttribute->value encoding:NSUTF8StringEncoding];
     if ([errorNum isEqualToString:@""]) {
        //添加行
-        [self createFolderWithName:folderName];
+//        [self createFolderWithName:folderName];
+        [self startConnectionWithRequest:_request];
+
     } else {
         if ([errorNum isEqualToString:@"02000005"])
             [self showHUDWithMessage:@"该文件夹已存在"];
@@ -1206,12 +1221,15 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
     NSString *urlString = [NSString stringWithFormat:@"%@cnddelete.cgi?path=%@%@&sid=%@",HOST_URL,self.currentPath,str,sid];
+    NSStringEncoding enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *str1 = [urlString stringByAddingPercentEscapesUsingEncoding:enc];
+
     if (!_request) {
         _request = [[NSMutableURLRequest alloc] init];
         [_request setHTTPMethod:@"GET"];
-        [_request setTimeoutInterval:60];
+        [_request setTimeoutInterval:30];
     }
-    _request.URL = [NSURL URLWithString:urlString];
+    _request.URL = [NSURL URLWithString:str1];
     AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
     [requestOperaton setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
         [self parseDeleteResultWithData:operation.responseData];
@@ -1283,11 +1301,12 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
     NSString *string = [NSString stringWithFormat:@"cndfilelist.cgi?path=%@&filter=all&sortby=name&desc=true&start=1&num=%i&sid=",self.currentPath,MAX_SHOW_NUM];
     NSString *urlString = [NSString stringWithFormat:@"%@%@%@",HOST_URL,string,sid];
-    request.URL = [NSURL URLWithString:urlString];
-    
-    if (!_connection) {
-        _connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
-    }
+    NSStringEncoding enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *str1 = [urlString stringByAddingPercentEscapesUsingEncoding:enc];
+    request.URL = [NSURL URLWithString:str1];
+
+    NSURLConnection *connection = [[NSURLConnection alloc] initWithRequest:request delegate:self startImmediately:NO]; //注意这个connection必须每次都要重新创建一次
+    [connection start];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
     while (!_connIsFinished) {
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
@@ -1296,8 +1315,11 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 
 - (void)parseFileListWithData:(NSData *)data
 {
+    NSStringEncoding encoding = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+//    NSLog(@"%@",[[NSString alloc] initWithData:data encoding:encoding]);
+    NSString *dataString = [[NSString alloc] initWithData:data encoding:encoding];
     NSError *error = nil;
-    TBXML *xml = [[TBXML alloc] initWithXMLData:data error:&error];
+    TBXML *xml = [[TBXML alloc] initWithXMLString:dataString error:&error];
     if (error) {
         NSLog(@"解析文件错误:%@",[error localizedDescription]);
         return;
@@ -1375,12 +1397,15 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection
 {
     _connIsFinished = YES;
-    _connection = nil;
+    connection = nil;
+//    [_connection cancel];
+//    _connection = nil;
     if (self.refreshView.isLoading) {
         [self stopLoading];
     }
     
     [self parseFileListWithData:_receiveData];
+    _receiveData = nil;
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
 
