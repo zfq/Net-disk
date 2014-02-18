@@ -658,7 +658,6 @@
         [self.searchDisplayController setActive:YES animated:YES];
     }
 
-   
     return YES;
 }
 
@@ -1127,6 +1126,12 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
                  MainContentItem *item = [self.itemSotre.allItems objectAtIndex:index.section-1];
                 [nameArray addObject:item.fileName];
             }
+            
+            _HUD = [[MBProgressHUD alloc] initWithView:self.view];
+            _HUD.labelText = @"请稍后…";
+            [self.view addSubview:_HUD];
+            [_HUD show:YES];;
+            
             [self requestDeleteFile:nameArray];
         } else {
             MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
@@ -1169,7 +1174,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }
     
     [self.myFileTableView beginUpdates];
-    [self.myFileTableView deleteSections:indexSets withRowAnimation:UITableViewRowAnimationNone];
+    [self.myFileTableView deleteSections:indexSets withRowAnimation:UITableViewRowAnimationAutomatic];
     [self.myFileTableView endUpdates];
     [self setAllBarItemsEnabledWithCount:_selectIndexPaths.count];
     
@@ -1215,7 +1220,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 #pragma mark - 删除服务器端文件
 - (void)requestDeleteFile:(NSArray *)nameArray
 {
-    NSString *str = [[NSString alloc] init];;
+    NSString *str = [[NSString alloc] init];
     for (NSString *name in nameArray) {
         str = [str stringByAppendingFormat:@"&name=%@",name];
     }
@@ -1263,6 +1268,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         NSLog(@"删除错误:%@",errorNum);
     }
     
+    [_HUD removeFromSuperview];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
 
