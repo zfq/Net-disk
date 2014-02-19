@@ -19,7 +19,7 @@
 #import "Constant.h"
 #import "TBXML.h"
 
-#define MAX_BUFFER_LENGTH 2097152   //2MB
+#define MAX_BUFFER_LENGTH 2097152   //2MB  2097152
 
 @interface DownloadViewController ()<UIActionSheetDelegate,UITableViewDelegate,UITableViewDataSource,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
 {
@@ -30,10 +30,11 @@
     NSInteger _currentProgressCounter;
     NSInteger _currentDownloadingRow;
     NSIndexPath *_currentDownloadingIndexPath;
+    long long _fileLength;
     
     NSFileHandle *_fileHandle;
     NSMutableData *_receivedData;
-    NSInteger _receivedLength;
+    long long _receivedLength;
     
     MDRadialProgressView *_progressView;
     UIButton *_progressButton;
@@ -56,9 +57,11 @@
         self.navigationItem.title = @"下载列表";
         UIBarButtonItem *rightButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"多选" style:UIBarButtonItemStylePlain target:self action:@selector(mutableSelect:)];
         self.navigationItem.rightBarButtonItem = rightButtonItem;
+        
         _currentProgressCounter = 0;
         _connIsFinished = NO;
-//        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(downloadItem:) name:kDownloadNotification object:nil];
+        _fileLength = 0;
+//        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(downloadFile:) name:kDownloadNotification object:nil];
     }
     return self;
 }
@@ -83,12 +86,6 @@
     _downloadLabel.font = [UIFont systemFontOfSize:14.0];
     
 //     _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
-}
-
-- (void)viewWillAppear:(BOOL)animated
-{
-    [super viewWillAppear:animated];
-    [self.downloadTableView reloadData];
 }
 
 - (void)didReceiveMemoryWarning
@@ -508,10 +505,12 @@
     _request.URL = [NSURL URLWithString:str1];
   
     NSURLConnection *connection = [[NSURLConnection alloc] initWithRequest:_request delegate:self startImmediately:NO];
+//    NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
+//    if (!_connIsFinished) {
+//        [connection scheduleInRunLoop:runLoop forMode:NSDefaultRunLoopMode];
+//    }
     [connection start];
-    while (!_connIsFinished) {
-        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
-    }
+
 /*
     _requestOperation = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
     __weak typeof(self) weakSelf = self;
@@ -557,14 +556,12 @@
     }
     NSString *downloadPath = [downloadDir stringByAppendingPathComponent:fileName];
     
-    BOOL success = [manager createFileAtPath:downloadPath contents:nil attributes:nil];
-    if (success) {
-        return downloadPath;
-    } else {
-        return nil;
-    }
-}
+    [manager createFileAtPath:downloadPath contents:nil attributes:nil];
+    
+    return downloadPath;
 
+}
+/*
 #pragma mark 刷新进度条
 - (void)updateProgressViewWithComplete:(long long)totalByteRead totalToRead:(long long)totalBytesExpectedToRead
                               bytesRead:(NSUInteger)bytesRead atIndexPath:(NSIndexPath *)indexPath
@@ -639,12 +636,12 @@
 //        [self showHUDWithImage:img messege:@"照片保存成功"];
     };
 }
-
+*/
 #pragma mark - NSURLConnection delegate
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
 {
     _connIsFinished = YES;
-    NSLog(@"请求下载失败");
+    NSLog(@"请求下载失败:%@",error.localizedDescription);
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response
@@ -653,11 +650,11 @@
     _fileHandle = [NSFileHandle fileHandleForWritingAtPath:[self.class downloadPathWithFileName:item.fileName]];
     
     if (!_receivedData) {
-        _receivedData = [[NSMutableData alloc] init];
+        _receivedData = [[NSMutableData alloc] initWithLength:0];
     }
-    [_receivedData setLength:0];
+//    [_receivedData setLength:0];
     _receivedLength = 0;
-    NSLog(@"收到resonse");
+    _fileLength = [response expectedContentLength];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data
@@ -667,32 +664,34 @@
     
     if (_receivedData.length > MAX_BUFFER_LENGTH && _fileHandle!=nil) {
         [_fileHandle writeData:_receivedData];
-        [_receivedData setLength:0];    //_receivedData = [[NSMutableData alloc] init]
+//        [_receivedData setLength:0];    //
+        _receivedData = nil;
+        _receivedData = [[NSMutableData alloc] initWithLength:0];
     }
-//     NSLog(@"接受数据");
-  /*
-    if (!_currentDownloadingIndexPath) {    //如果界面没有显示时
+
+
+    if (_currentDownloadingIndexPath != nil) {    //如果界面没有显示时
         MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
         DownloadCell *cell = (DownloadCell*)[self.downloadTableView cellForRowAtIndexPath:_currentDownloadingIndexPath];
+//        NSLog(@"receivdata");
+//        MDRadialProgressView *progressView = nil;
+//        
+//        progressView = (MDRadialProgressView*)cell.accessoryView;
+        _currentProgressCounter =  (NSInteger)((_receivedLength*100)/_fileLength);    //0~100内整数
+//
+        _progressView.progressCounter = _currentProgressCounter;
         
-        MDRadialProgressView *progressView = nil;
-        
-        progressView = (MDRadialProgressView*)cell.accessoryView;
-        _currentProgressCounter =  (NSInteger)((totalBytesWritten*100)/expectedTotalBytes);    //0~100内整数
-        
-        progressView.progressCounter = _currentProgressCounter;
-        
-        if (totalBytesWritten < 1000 ) {      //近似< 1K
-            cell.dateLabel.text = [NSString stringWithFormat:@"%iB/%@",(int)totalBytesWritten,item.fileSize];
-        } else if (totalBytesWritten >=1000 && totalBytesWritten <1024000) { //近似<1MB
-            cell.dateLabel.text = [NSString stringWithFormat:@"%iK/%@",(int)(totalBytesWritten/1024),item.fileSize];
-        } else if (totalBytesWritten >= 1024000 && totalBytesWritten <1024000000) { //近似>1MB
-            cell.dateLabel.text = [NSString stringWithFormat:@"%.2fM/%@",totalBytesWritten/1024000.0,item.fileSize];
-        } else {
-            cell.dateLabel.text = [NSString stringWithFormat:@"%.2G/%@",totalBytesWritten/1024000000.0,item.fileSize];
-        }
+//        if (_receivedLength < 1000 ) {      //近似< 1K
+//            cell.dateLabel.text = [NSString stringWithFormat:@"%iB/%@",(int)_receivedLength,item.fileSize];
+//        } else if (_receivedLength >=1000 && _receivedLength <1024000) { //近似<1MB
+//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1fK/%@",(_receivedLength/1024.0),item.fileSize];
+//        } else if (_receivedLength >= 1024000 && _receivedLength <1024000000) { //近似>1MB
+//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1fM/%@",_receivedLength/1024000.0,item.fileSize];
+//        } else {
+//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1G/%@",_receivedLength/1024000000.0,item.fileSize];
+//        }
     }
-*/
+
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection
@@ -700,7 +699,9 @@
     _connIsFinished = YES;
     [_fileHandle writeData:_receivedData];
     [_fileHandle closeFile];
-    NSLog(@"完成loading");
+    _receivedData = nil;
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+     NSLog(@"finish");
 }
 
 
