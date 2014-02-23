@@ -8,6 +8,11 @@
 
 #import <UIKit/UIKit.h>
 
+typedef enum {
+    kOperationTypeCreateDir = 0,
+    kOperationTypeFileRename,
+}OperationType;
+
 @protocol NewFolderViewControllerDelegate;
 
 @interface NewFolderViewController : UIViewController<UITextFieldDelegate>
@@ -20,6 +25,7 @@
 @property (nonatomic,strong) UIView *cellView;
 @property (nonatomic,strong) UIImage *folderImage;
 @property (nonatomic,strong) UITextField *folderName;
+@property (nonatomic) OperationType operationType;
 
 - (IBAction)tapBackground:(id)sender;
 @end
