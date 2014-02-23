@@ -13,5 +13,5 @@
 @property (nonatomic,strong) NSMutableArray *downloadItems;     //已完成的下载项
 @property (nonatomic,strong) NSMutableArray *downloadingItems;  //未完成的下载项
 
-+ (DownloadItemStore *)shareItemStore;
++ (DownloadItemStore *)sharedItemStore;
 @end

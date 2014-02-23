@@ -10,23 +10,17 @@
 
 @implementation DownloadItemStore
 
-+ (DownloadItemStore *)shareItemStore
++ (DownloadItemStore *)sharedItemStore
 {
     static DownloadItemStore *sharedDownloadItemInstance = nil;
-    static dispatch_once_t predicate;
-    dispatch_once(&predicate, ^{
+    static dispatch_once_t downloadItemPredicate;
+    dispatch_once(&downloadItemPredicate, ^{
         sharedDownloadItemInstance = [[self alloc] init];
         sharedDownloadItemInstance.downloadingItems = [NSMutableArray array];
         sharedDownloadItemInstance.downloadItems = [NSMutableArray array];
-        
     });
     
     return sharedDownloadItemInstance;
 }
-
-//+ (id)allocWithZone:(struct _NSZone *)zone
-//{
-//    return [self shareItemStore];
-//}
 
 @end
