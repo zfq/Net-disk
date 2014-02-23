@@ -23,7 +23,7 @@
 #import "Reachability.h"
 #import "SSKeychain.h"
 
-@interface MyFileViewController ()<UIActionSheetDelegate,UISearchBarDelegate,SetFolderCellDelegate,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
+@interface MyFileViewController ()<UIActionSheetDelegate,UISearchBarDelegate,NSURLConnectionDelegate,NSURLConnectionDataDelegate>
 {
     CGFloat _newFolderBtnOriginX;
     NSMutableURLRequest *_request;
@@ -225,7 +225,14 @@
         return;
     refreshView.isDragging = NO;
     if (scrollView.contentOffset.y <= -REFRESH_HEADER_HEIGHT) {
-        [self refresh];
+        if (![self networkReachable]) {
+            [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+            [self createHUDWithCustomView];
+            UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/error.png"];
+            [self showHUDWithImage:img messege:@"当前网络不可用"];
+        } else {
+            [self refresh];
+        }
     }
 }
 
@@ -421,11 +428,7 @@
     }
 }
 
-#pragma mark - 工具栏按钮点击事件
-- (void)downloadFiles:(id)sender
-{
-    NSLog(@"download");
-}
+#pragma mark - 多选
 
 - (void)shareFiles:(id)sender
 {
@@ -532,17 +535,18 @@
 //        
 //    }
 //    nfvc.folderImage = [UIImage imageNamed:@"mainFolder"];
-    NewFolderViewController *newVC = [[NewFolderViewController alloc] init];
-    newVC.nDelegate = self;
-    newVC.folderName.text = @"新建文件夹";
-    UINavigationController *nvc = [[UINavigationController alloc] initWithRootViewController:newVC];
+    NewFolderViewController *vc = [[NewFolderViewController alloc] init];
+    vc.operationType = kOperationTypeCreateDir;
+    vc.nDelegate = self;
+    vc.folderName.text = @"新建文件夹";
+    UINavigationController *nvc = [[UINavigationController alloc] initWithRootViewController:vc];
     [self.navigationController presentViewController:nvc animated:YES completion:nil];
 }
 
 #pragma mark - NewFolderViewController代理
 - (void)cancelNewFolder:(NewFolderViewController *)newFolderViewController
 {
-    [self.navigationController dismissViewControllerAnimated:YES completion:nil];
+    [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)completeNewFolder:(NewFolderViewController *)newFolderViewController
@@ -554,9 +558,20 @@
         itemName = [itemName stringByAppendingFormat:@"(%i)",i++];
         tempItem = [self.itemDictionaryStore objectForKey:itemName];
     }
+
+    if (newFolderViewController.operationType == kOperationTypeCreateDir) {     //新建文件夹
+        [self createDirWithName:itemName];
+        [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+    } else {    //重命名
+        MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+        NSLog(@"%@",item.fileName);
+        BOOL result = [self renameWithOriginalName:item.fileName NewName:itemName];
+        if (result) {
+             [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+        }
+    }
     
-    [self createDirWithName:itemName];
-    [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+    
 }
 
 - (void)createFolderWithName:(NSString *)folderName
@@ -580,7 +595,7 @@
     if (!_request) {
         _request = [[NSMutableURLRequest alloc] init];
         [_request setHTTPMethod:@"GET"];
-        [_request setTimeoutInterval:60];
+        [_request setTimeoutInterval:30];
     }
     _request.URL = [NSURL URLWithString:str1];
     AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
@@ -592,6 +607,34 @@
     }];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
     [requestOperaton start];
+}
+
+- (BOOL)renameWithOriginalName:(NSString *)originName NewName:(NSString *)newFileName
+{
+    __block BOOL result = NO;
+    NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
+    NSString *urlString = [NSString stringWithFormat:@"%@cndrename.cgi?path=%@&name=%@&newname=%@&sid=%@",HOST_URL,self.currentPath,originName,newFileName,sid];
+    NSStringEncoding enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *str1 = [urlString stringByAddingPercentEscapesUsingEncoding:enc];
+    
+    if (!_request) {
+        _request = [[NSMutableURLRequest alloc] init];
+        [_request setHTTPMethod:@"GET"];
+        [_request setTimeoutInterval:30];
+    }
+    _request.URL = [NSURL URLWithString:str1];
+    AFHTTPRequestOperation *requestOperaton = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
+    [requestOperaton setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+        result = [self parserRenameResultWithData:operation.responseData];
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+        NSLog(@"重命名失败:%@",[error localizedDescription]);
+        result = NO;
+    }];
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    [requestOperaton start];
+    return result;
 }
 
 - (void)parseCreateDirResultWithData:(NSData *)data name:(NSString *)folderName
@@ -609,8 +652,6 @@
     TBXMLElement *statusNode = [TBXML childElementNamed:@"Status" parentElement:deleteNode];
     NSString *errorNum = [NSString stringWithCString:statusNode->firstAttribute->value encoding:NSUTF8StringEncoding];
     if ([errorNum isEqualToString:@""]) {
-       //添加行
-//        [self createFolderWithName:folderName];
         [self startConnectionWithRequest:_request];
 
     } else {
@@ -620,6 +661,36 @@
             [self showHUDWithMessage:@"获取已使用空间失败"];
         else if ([errorNum isEqualToString:@"020000021"])
             [self showHUDWithMessage:@"没有足够空间"];
+    }
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+}
+
+- (BOOL)parserRenameResultWithData:(NSData *)data
+{
+    NSStringEncoding encoding = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
+    NSString *dataString = [[NSString alloc] initWithData:data encoding:encoding];
+    NSError *error = nil;
+    TBXML *xml = [[TBXML alloc] initWithXMLString:dataString error:&error];
+    if (error) {
+        NSLog(@"解析文件错误:%@",[error localizedDescription]);
+        return NO;
+    }
+    TBXMLElement *root = [xml rootXMLElement];
+    TBXMLElement *deleteNode = [TBXML childElementNamed:@"Rename" parentElement:root];
+    TBXMLElement *statusNode = [TBXML childElementNamed:@"Status" parentElement:deleteNode];
+    NSString *errorNum = [NSString stringWithCString:statusNode->firstAttribute->value encoding:NSUTF8StringEncoding];
+    if ([errorNum isEqualToString:@""]) {
+        [self startConnectionWithRequest:_request];
+        return YES;
+    } else {
+        if ([errorNum isEqualToString:@"02000005"])
+            [self showHUDWithMessage:@"该文件已存在"];
+        else if ([errorNum isEqualToString:@"02000002E"])
+            [self showHUDWithMessage:@"没有该文件"];
+        else if ([errorNum isEqualToString:@"02000001E"])
+            [self showHUDWithMessage:@"分享文件不能重命名"];
+        return NO;
     }
     
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
@@ -758,7 +829,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             return cell;
         } else {  //显示拓展行
             MainContentItem *item = [itemSotre.allItems objectAtIndex:indexPath.section-1];
-            if (self.isUnfold && (item.fileProperty != kFilePropertyDir)) {
+            if (self.isUnfold && (item.fileProperty != kFilePropertyPic)) {
                 static NSString *setMainContentCellID = @"SetMainContentCell";
                 SetMainContentCell *cell = [tableView dequeueReusableCellWithIdentifier:setMainContentCellID];
                 if (!cell) {
@@ -788,11 +859,11 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     } else if (fileSize >=1000 && fileSize < 1024) {
         sizeString = [NSString stringWithFormat:@"%.2lfKB",fileSize/1024.0];
     } else if (fileSize >=1024 && fileSize < 1024000){
-        sizeString = [NSString stringWithFormat:@"%.0fKB",fileSize/1024.0];
+        sizeString = [NSString stringWithFormat:@"%iKB",(int)(fileSize/1024)];
     } else if (fileSize >=1024000 && fileSize <1048576) {
         sizeString = [NSString stringWithFormat:@"%.2fMB",fileSize/1048576.0];
     } else if (fileSize >=1048576 && fileSize < 1048576000) {
-        sizeString = [NSString stringWithFormat:@"%.0fMB",fileSize/1048576.0];
+        sizeString = [NSString stringWithFormat:@"%iMB",(int)(fileSize/1048576)];
     } else if (fileSize >=1048576000 && fileSize < 1048576000000) {
         sizeString = [NSString stringWithFormat:@"%.2fGB",fileSize/1048576000.0];
     } else {
@@ -939,7 +1010,6 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         return UITableViewCellEditingStyleNone;
     else
         return UITableViewCellEditingStyleDelete | UITableViewCellEditingStyleInsert;
-    
 }
 
 #pragma mark - 改变折叠按钮图片
@@ -1022,12 +1092,39 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     [cell.moreBtn addTarget:self action:@selector(moreFile:) forControlEvents:UIControlEventTouchUpInside];
 }
 
+- (void)addTargetForSetFolderCell:(SetFolderCell *)cell
+{
+    [cell.downloadBtn addTarget:self action:@selector(downloadFile:) forControlEvents:UIControlEventTouchUpInside];
+    [cell.shareBtn addTarget:self action:@selector(shareFile:) forControlEvents:UIControlEventTouchUpInside];
+    [cell.deleteBtn addTarget:self action:@selector(deleteFile:) forControlEvents:UIControlEventTouchUpInside];
+    [cell.moreBtn addTarget:self action:@selector(moreFile:) forControlEvents:UIControlEventTouchUpInside];
+}
 //保存图片
 - (void)saveFile:(id)sender
 {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"保存到本地相册", nil];
     actionSheet.tag = 1011;
     [actionSheet showFromToolbar:self.navigationController.toolbar];
+}
+
+//下载文件
+- (void)downloadFile:(id)sender
+{
+    NSMutableArray *items = [NSMutableArray array];
+    if (self.myFileTableView.isEditing) {   //多选下载
+        for (NSIndexPath *indexPath in self.myFileTableView.indexPathsForSelectedRows) {
+            MainContentItem *tempItem = [self.itemSotre.allItems objectAtIndex:indexPath.section-1];
+            [items addObject:tempItem];
+            [[DownloadItemStore shareItemStore].downloadingItems addObjectsFromArray:items];
+        }
+    } else {
+        MainContentItem *tempItem = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+        [[DownloadItemStore shareItemStore].downloadingItems addObject:tempItem];
+    }
+    
+    NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore shareItemStore].downloadingItems.count];
+    [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kDownloadNotification object:nil];
 }
 
 //分享文件
@@ -1058,8 +1155,17 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //更多操作
 - (void)moreFile:(id)sender
 {
-    UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",@"复制",nil];
-    actionSheet.tag = 1014;
+    MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+    UIActionSheet *actionSheet = nil;
+    if (item.fileProperty == kFilePropertyPic) {
+        actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",@"复制",nil];
+        actionSheet.tag = 1014;
+    } else {
+        actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"重命名",@"移动",@"复制",nil];
+        actionSheet.tag = 1015;
+    }
+   
+    
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
 
@@ -1076,7 +1182,8 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         case 1013:  //删除图片
             [self deleteFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
             break;
-        case 1014:  //更多操作
+        case 1014:  //更多操作 for pic
+        case 1015:  //更多操作 for others
             [self moreFileAction:actionSheet clickedButtonAtIndex:buttonIndex];
             break;
         default:
@@ -1085,30 +1192,40 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 }
 
 #pragma mark - actionSheet操作
-/*
+
 - (void)image: (UIImage *) image didFinishSavingWithError: (NSError *) error
   contextInfo: (void *) contextInfo;
 {
-    [self createHUD];
-    UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
+    [self createHUDWithCustomView];
     
     if (error != NULL) {
-        [self showHUDWithImage:img messege:@"照片保存失败"];
+        UIImage *failImg = [UIImage imageNamed:@"MBProgressHUD.bundle/fail.png"];
+        [self showHUDWithImage:failImg messege:@"照片保存失败"];
     }else{
-        [self showHUDWithImage:img messege:@"照片保存成功"];
+        UIImage *successImg = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
+        [self showHUDWithImage:successImg messege:@"照片保存成功"];
     };
 }
-*/
 
 - (void)saveFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
 {
         //图片单个文件保存，indexofUnfold
      if (buttonIndex == 0) {
-//         NSString *imgName = [_photoArray objectAtIndex:_currentPhotoIndex];
-//         UIImage *currentImage = [UIImage imageNamed:imgName];
-//         UIImageWriteToSavedPhotosAlbum(currentImage, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
+         MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+         NSString *documentPath = [paths objectAtIndex:0];
+         NSString *downloadDir = [documentPath stringByAppendingPathComponent:DOWNLOAD_DIR];
+         NSString *tempFilePath = [downloadDir stringByAppendingPathComponent:item.fileName];
+         if ([[NSFileManager defaultManager] fileExistsAtPath:tempFilePath]) {
+             NSData *imageData = [[NSFileManager defaultManager] contentsAtPath:tempFilePath];
+             UIImage *image = [UIImage imageWithData:imageData];
+             UIImageWriteToSavedPhotosAlbum(image, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
+         } else {
+             //下载图片
+             
+         }
+        
      }
-
 }
 
 - (void)shareFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
@@ -1192,28 +1309,48 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 - (void)moreFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
 {
     MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
-//    MainContentCell *cell = (MainContentCell*)[self.myFileTableView cellForRowAtIndexPath:self.selectIndex];
-    switch (buttonIndex) {
-        case 0:{        //下载
-            [[DownloadItemStore shareItemStore].downloadingItems addObject:item];
-            NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore shareItemStore].downloadingItems.count];
-            [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
-            break;
+    if (actionSheet.tag == 1014) {  //图片拓展行
+        switch (buttonIndex) {
+            case 0:{        //下载
+                [self downloadFile:nil];
+                break;
+            }
+            case 1:{        //重命名
+                NewFolderViewController *vc = [[NewFolderViewController alloc] init];
+                vc.folderName.text = item.fileName;
+                vc.folderImage = item.thumbnailImage;
+                vc.operationType = kOperationTypeFileRename;
+                vc.nDelegate = self;
+                [self presentViewController:vc animated:YES completion:nil];
+                break;
+            }
+            case 2:{        //移动
+                break;
+            }
+            case 3:{        //复制
+                break;
+            }
+            default:break;
         }
-        case 1:{        //重命名
-//            NewFolderViewController *vc = [[NewFolderViewController alloc] init];
-//            vc.folderName.text = cell.nameLabel.text;
-//            nfvc.
-            break;
+    } else if (actionSheet.tag == 1015) {
+        switch (buttonIndex) {
+            case 0:{        //重命名
+                NewFolderViewController *vc = [[NewFolderViewController alloc] init];
+                vc.folderName.text = item.fileName;
+                vc.folderImage = item.thumbnailImage;
+                vc.operationType = kOperationTypeFileRename;
+                vc.nDelegate = self;
+                [self presentViewController:vc animated:YES completion:nil];
+                break;
+            }
+            case 1:{        //移动
+                break;
+            }
+            case 2:{        //复制
+                break;
+            }
+            default:break;
         }
-        case 2:{        //移动
-            break;
-        }
-        case 3:{        //复制
-            break;
-        }
-        default:
-            break;
     }
 }
 
@@ -1411,7 +1548,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }
     
     [self parseFileListWithData:_receiveData];
-    _receiveData = nil;
+    [_receiveData setLength:0];
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
 }
 
