@@ -1065,11 +1065,15 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //下载文件
 - (void)downloadFile:(id)sender
 {
-    [self recover];
     NSMutableArray *items = [NSMutableArray array];
     if (self.myFileTableView.isEditing) {   //多选下载
+        NSArray *downloadingArry = [DownloadItemStore sharedItemStore].downloadingItems;
+        NSArray *tempArray = [MyFileItemStore sharedItemStore].allItems;
         for (NSIndexPath *indexPath in self.myFileTableView.indexPathsForSelectedRows) {
-            MainContentItem *tempItem = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-1];
+            MainContentItem *tempItem = [tempArray objectAtIndex:indexPath.section-1];
+            if ([downloadingArry containsObject:tempItem]) {  //如果正在下载列表中已经存在，则不下载
+                return;
+            }
             [items addObject:tempItem];
         }
         [[DownloadItemStore sharedItemStore].downloadingItems addObjectsFromArray:items];
@@ -1077,7 +1081,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         MainContentItem *tempItem = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
         [[DownloadItemStore sharedItemStore].downloadingItems addObject:tempItem];
     }
-    
+    [self recover];
     NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore sharedItemStore].downloadingItems.count];
     [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
     [[NSNotificationCenter defaultCenter] postNotificationName:kDownloadNotification object:nil];
