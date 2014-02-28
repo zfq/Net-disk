@@ -452,25 +452,32 @@
 
 - (UploadCell *)uploadCellInTableView:(UITableView *)tableView atIndexPath:(NSIndexPath *)indexPath
 {
+    //得判断是否下载完成
     UploadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"UploadCell"];
+    NSInteger count = [DownloadItemStore sharedItemStore].downloadingItems.count;
     cell.accessoryView = nil;
     MainContentItem *item = nil;
-    if (indexPath.section == 0)
-        item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:indexPath.row];
-    else
-        item = [[DownloadItemStore sharedItemStore].downloadItems objectAtIndex:indexPath.row];
-    cell.thumbnailView.image = item.thumbnailImage;
-    cell.nameLabel.text = item.fileName;
     
     NSDate *nowDate = [NSDate date];
     NSDateFormatter *outFormat = [[NSDateFormatter alloc] init];
     [outFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
     NSString *timeStr = [outFormat stringFromDate:nowDate];
+    
     if (indexPath.section == 0) {
-        cell.dateLabel.text = @"正在等待";
-    } else {
+        if (count == 0) {
+            item = [[DownloadItemStore sharedItemStore].downloadItems objectAtIndex:indexPath.row];
+            cell.dateLabel.text = timeStr;
+        } else {
+            item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:indexPath.row];
+            cell.dateLabel.text = @"正在等待…";
+        }
+        
+    } else if (indexPath.section == 1){
+        item = [[DownloadItemStore sharedItemStore].downloadItems objectAtIndex:indexPath.row];
         cell.dateLabel.text = timeStr;
     }
+    cell.thumbnailView.image = item.thumbnailImage;
+    cell.nameLabel.text = item.fileName;
     cell.sizeLabel.text = item.fileSize;
     
     return cell;
@@ -495,8 +502,8 @@
 
 - (void)downloadFile:(NSNotification *)notification
 {
-//    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:0];
-//    [self downloadItem:item];
+    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:0];
+    [self downloadItem:item];
  /*
     __block typeof(self) weakself = self;
 //    NSInteger count = [DownloadItemStore sharedItemStore].downloadingItems.count;
@@ -647,7 +654,6 @@
     [self refreshDownloadStore];
     [self automaticRefreshCell];
     [self launchNextConnection];
-    NSLog(@"finish");
 }
 
 - (void)launchNextConnection
@@ -673,23 +679,29 @@
 {
     NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
     NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
-//    NSLog(@"正在下载%i 已完成%i",downloadingCounts,downloadCounts);
+
     if (_viewIsVisible) {
-        //    NSIndexPath *firstIndexPath = [NSIndexPath indexPathForRow:0 inSection:0];
-//        NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
-//        NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
-//        NSLog(@"正在下载%i 已完成%i",downloadingCounts,downloadCounts);
+       
         if (downloadingCounts == 0 ) { //如果全部下载完成
             [self.downloadTableView reloadData];
-            NSLog(@"刷新");
         } else {
             NSIndexPath *deleteIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:0];
-            NSIndexPath *insertIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:1];
+            NSIndexPath *insertIndexPath = [NSIndexPath indexPathForRow:downloadCounts-1 inSection:1];
+            [self.downloadTableView beginUpdates];
             [self.downloadTableView deleteRowsAtIndexPaths:@[deleteIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            
+            if (downloadCounts == 1) {
+                [self.downloadTableView insertSections:[NSIndexSet indexSetWithIndex:1] withRowAnimation:UITableViewRowAnimationNone];
+            }
+            
             [self.downloadTableView insertRowsAtIndexPaths:@[insertIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            [self.downloadTableView endUpdates];
         }
-
     }
+    
+    //更新BadgeValue
+    NSString *value = [NSString stringWithFormat:@"%i",downloadingCounts];
+    [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -726,6 +738,10 @@
             }
         }
     }
+    
+    //更新BadageValue
+    NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore sharedItemStore].downloadingItems.count];
+    [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
 }
 
 #pragma mark - 选择某一行

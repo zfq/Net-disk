@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>81B600E4-53F6-4CB0-AED8-F342C922551E</string>
+	<key>IDESourceControlProjectName</key>
+	<string>Cloud</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>DA02EF41-8AB3-4C8E-9ED5-8E1F19A8F34F</key>
+		<string>https://github.com/zfq/Net-disk.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>Cloud.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>DA02EF41-8AB3-4C8E-9ED5-8E1F19A8F34F</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/zfq/Net-disk.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>DA02EF41-8AB3-4C8E-9ED5-8E1F19A8F34F</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>DA02EF41-8AB3-4C8E-9ED5-8E1F19A8F34F</string>
+			<key>IDESourceControlWCCName</key>
+			<string>Cloud</string>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -310,6 +310,7 @@
         //        self.isSuccessLogin = YES;
         NSLog(@"一切OK");
         //通知myFileViewController
+       
         MyFileViewController *vc = [[MyFileViewController alloc] init];
         [[NSNotificationCenter defaultCenter] postNotificationName: kLoginStatusChangedNotification object: vc];
         [[NSUserDefaults standardUserDefaults] setObject:@"YES" forKey:@"succeedLogin"];
@@ -394,6 +395,7 @@
         }
     }
 }
+
 @end
 
 

@@ -17,6 +17,8 @@
 @property (nonatomic,weak) id<SetFolderCellDelegate> sDelegate;
 @property (nonatomic,weak) IBOutlet UIButton *downloadBtn;
 @property (nonatomic,weak) IBOutlet UIButton *shareBtn;
+@property (nonatomic,weak) IBOutlet UIButton *deleteBtn;
+@property (nonatomic,weak) IBOutlet UIButton *moreBtn;
 
 - (IBAction)downloadFiles:(id)sender;
 - (IBAction)shareFiles:(id)sender;

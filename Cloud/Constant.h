@@ -14,9 +14,12 @@
 
 #define HOST_URL        @"http://202.85.212.220:8080/paas/"
 #define ROOT_PATH       @"/"
+#define DOWNLOAD_DIR    @"Download"
 #define MAX_SHOW_NUM    100
 
 #define kLoginStatusChangedNotification @"kLoginStatusChangedNotification"
+#define kDownloadNotification           @"kDownloadNotification"
+
 #define NavigationBarColor [UIColor colorWithRed:0.118 green:0.564 blue:0.95 alpha:1.0]
 
 #define SCREEN_WIDTH [UIScreen mainScreen].bounds.size.width
