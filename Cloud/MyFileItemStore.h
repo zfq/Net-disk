@@ -14,6 +14,8 @@
 
 @property (nonatomic,strong) NSMutableArray *allItems;
 
++ (MyFileItemStore *)sharedItemStore;
+
 - (MainContentItem *)createSingleFolderWithName:(NSString *)folderName date:(NSDate *)createdDate folderPath:(NSString *)path isDir:(BOOL)dir;
 - (MainContentItem *)createFolderWithName:(NSString *)folderName date:(NSDate *)createdDate folderPath:(NSString *)path isDir:(BOOL)dir;
 @end

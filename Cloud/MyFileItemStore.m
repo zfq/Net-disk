@@ -21,6 +21,18 @@
     return self;
 }
 
++ (MyFileItemStore *)sharedItemStore
+{
+    static MyFileItemStore *sharedMyFileItemInstance = nil;
+    static dispatch_once_t myFileItemPredicate;
+    dispatch_once(&myFileItemPredicate, ^{
+        sharedMyFileItemInstance = [[self alloc] init];
+        sharedMyFileItemInstance.allItems= [NSMutableArray array];
+    });
+    
+    return sharedMyFileItemInstance;
+}
+
 - (MainContentItem *)createSingleFolderWithName:(NSString *)folderName date:(NSDate *)createdDate folderPath:(NSString *)path isDir:(BOOL)dir
 {
     MainContentItem *item = [[MainContentItem alloc] init];
