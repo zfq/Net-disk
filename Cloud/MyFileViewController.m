@@ -40,7 +40,7 @@
 @property (nonatomic,strong) NSIndexPath *selectIndex;
 @property (nonatomic,strong) NSIndexPath *indexOfUnfold;
 @property (nonatomic,strong) UIToolbar *toolBar;
-@property (nonatomic,strong) NSMutableArray *selectIndexPaths;
+
 
 - (void)stopLoading;
 - (void)startLoading;
@@ -61,7 +61,7 @@
 @synthesize searchDisplayController;
 @synthesize refreshView;
 @synthesize itemDictionaryStore;
-@synthesize itemSotre;
+//@synthesize itemSotre;
 @synthesize currentPath;
 @synthesize navTitle;
 
@@ -316,9 +316,6 @@
     if ([self.myFileTableView isEditing]) {
         [self.navigationItem.rightBarButtonItem setTitle:@"多选"];
         [self.myFileTableView setEditing:NO animated:YES];
-        if (self.selectIndexPaths) {
-            [self.selectIndexPaths removeAllObjects];
-        }
         if (self.toolBar != nil) {
             [self showTabBar];
         }
@@ -327,6 +324,15 @@
         [self setTableViewCellFold]; //关闭折叠
         [self.myFileTableView setEditing:YES animated:YES];
         [self hideTabBar];
+    }
+}
+
+- (void)recover
+{
+    [self.navigationItem.rightBarButtonItem setTitle:@"多选"];
+    [self.myFileTableView setEditing:NO animated:YES];
+    if (self.toolBar != nil) {
+        [self showTabBar];
     }
 }
 
@@ -358,7 +364,7 @@
             view.backgroundColor = [UIColor whiteColor];
          
             _toolBar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, fHeight-49, view.frame.size.width, 49)];
-            UIBarButtonItem *downloadBi = [[UIBarButtonItem alloc] initWithTitle:@"下载" style:UIBarButtonItemStylePlain target:self action:@selector(downloadFiles:)];
+            UIBarButtonItem *downloadBi = [[UIBarButtonItem alloc] initWithTitle:@"下载" style:UIBarButtonItemStylePlain target:self action:@selector(downloadFile:)];
             downloadBi.enabled = NO;
             UIBarButtonItem *shareBi = [[UIBarButtonItem alloc] initWithTitle:@"分享" style:UIBarButtonItemStylePlain target:self action:@selector(shareFiles:)];
             shareBi.enabled = NO;
@@ -446,7 +452,7 @@
     self = [super init];
     
     if (self) {
-        self.itemSotre = [[MyFileItemStore alloc] init];
+//        self.itemSotre = [[MyFileItemStore alloc] init];
         self.itemDictionaryStore = [[NSMutableDictionary alloc] init];
         self.currentPath = dirPath;
 //        [self rebuildFileList:self.currentPath];
@@ -481,49 +487,6 @@
     }
     
 	return [NSArray arrayWithObjects:nil];
-}
-
-- (void)rebuildFileList:(NSString *)dirPath
-{
-    //获取这个路径里的所有文件，相当于文件名,allFiles要按创建日期排序
-    NSArray *allFiles = [self sortFilesByModDate:dirPath];
-    NSMutableArray *visibleFiles = [[NSMutableArray alloc] initWithCapacity:allFiles.count]; //分配指定大小的数组
-   
-    for (NSString *file in allFiles) {
-        if (![file hasPrefix:@"."]) { //如果不是隐藏文件，将文件名追加到当前路径path中
-            NSString *fullPath = [[self currentPath] stringByAppendingPathComponent:file];
-            
-            BOOL isDir = NO;
-            //判断当前文件或文件夹是否存在，返回值是isDir
-            BOOL isExist = [[NSFileManager defaultManager] fileExistsAtPath:fullPath isDirectory:&isDir];
-            if (isExist) {
-                //获取文件创建日期
-                NSDictionary *fileAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:fullPath error:nil];
-                NSDate *date = [fileAttributes objectForKey:NSFileModificationDate];
-                if (isDir) {
-                    //MainContentItem保存某个文件的名称、路径
-                    MainContentItem *item = [itemSotre createSingleFolderWithName:file date:date folderPath:fullPath isDir:YES];
-                    [visibleFiles addObject:item];
-                    [itemDictionaryStore setObject:item forKey:file]; //用临时的array将所有的PSDirectoryPickerEntry对象保存起来
-                    
-                } else {
-                    //应解析xml的结果，判断如果不是文件夹，就放在这里，
-                    //设置文件的文件名，thumbnailImage,文件格式(可能不需要) [file pathExtesion]
-                    MainContentItem *item = [itemSotre createSingleFolderWithName:file date:date folderPath:fullPath isDir:NO];
-                    NSData *imageData = [[NSFileManager defaultManager] contentsAtPath:fullPath];
-                    [item setThumbnailImageFromData:imageData];
-                    [itemDictionaryStore setObject:item forKey:file];
-//                    NSLog(@"%@",[file pathExtension]);
-                   
-                    [visibleFiles addObject:item];
-                    item = nil;
-                }
-                
-            }
-        }
-    }
-    
-    [self.itemSotre setAllItems:visibleFiles]; //将临时的array 赋给files,
 }
 
 #pragma mark 新建文件夹
@@ -563,7 +526,7 @@
         [self createDirWithName:itemName];
         [newFolderViewController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
     } else {    //重命名
-        MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+        MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
         NSLog(@"%@",item.fileName);
         BOOL result = [self renameWithOriginalName:item.fileName NewName:itemName];
         if (result) {
@@ -577,8 +540,8 @@
 - (void)createFolderWithName:(NSString *)folderName
 {
     NSDate *currentDate = [NSDate date];
-    MainContentItem *newItem = [itemSotre createFolderWithName:folderName date:currentDate folderPath:self.currentPath isDir:YES];
-    [self.itemSotre.allItems insertObject:newItem atIndex:0];
+    MainContentItem *newItem = [[MyFileItemStore sharedItemStore] createFolderWithName:folderName date:currentDate folderPath:self.currentPath isDir:YES];
+    [[MyFileItemStore sharedItemStore].allItems insertObject:newItem atIndex:0];
     [self.myFileTableView beginUpdates];
     NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:1];
     [self.myFileTableView insertSections:indexSet withRowAnimation:UITableViewRowAnimationAutomatic];
@@ -818,7 +781,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
                 [cell.unfoldBtn addTarget:self action:@selector(changeArrowDirection:) forControlEvents:UIControlEventTouchUpInside];
             }
 
-            MainContentItem *item = [itemSotre.allItems objectAtIndex:indexPath.section-1];
+            MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-1];
             cell.nameLabel.text = item.fileName;
             cell.thumbnailView.image = item.thumbnailImage;
             NSDate *currentDate = item.dateCreated;
@@ -828,7 +791,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             cell.sizeLabel.text = item.fileSize;
             return cell;
         } else {  //显示拓展行
-            MainContentItem *item = [itemSotre.allItems objectAtIndex:indexPath.section-1];
+            MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-1];
             if (self.isUnfold && (item.fileProperty != kFilePropertyPic)) {
                 static NSString *setMainContentCellID = @"SetMainContentCell";
                 SetMainContentCell *cell = [tableView dequeueReusableCellWithIdentifier:setMainContentCellID];
@@ -842,8 +805,8 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
                 SetFolderCell *cell = [tableView dequeueReusableCellWithIdentifier:setFolderCellID];
                 if (!cell) {
                     cell = [[[NSBundle mainBundle] loadNibNamed:setFolderCellID owner:self options:nil] objectAtIndex:0];
-                    cell.sDelegate = self;
-                   
+//                    cell.sDelegate = self;
+                    [self addTargetForSetFolderCell:cell];
                 }
                 return cell;
             }
@@ -874,7 +837,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 
 - (NSInteger) numberOfSectionsInTableView:(UITableView *)tableView
 {
-    NSInteger count = [itemSotre.allItems count];
+    NSInteger count = [[MyFileItemStore sharedItemStore].allItems count];
     return count+1;
 }
 
@@ -918,14 +881,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     if (indexPath.section > 0)
     {
         if ([tableView cellForRowAtIndexPath:indexPath].editing) { //如果正处于编辑状态，就不让push
-            if (!_selectIndexPaths) {
-                 _selectIndexPaths = [[NSMutableArray alloc] init];
-            }
-            [_selectIndexPaths addObject:indexPath];
-            
-            [[tableView cellForRowAtIndexPath:indexPath] setSelected:YES animated:YES];
-            
-            NSInteger count = _selectIndexPaths.count;
+            NSInteger count = tableView.indexPathsForSelectedRows.count;
             [self setAllBarItemsEnabledWithCount:count];
             return;
         } else {
@@ -938,7 +894,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             cell.selectedBackgroundView = backgroundView;
             cell.selectedBackgroundView.backgroundColor = NavigationBarColor;
 
-            MainContentItem *item = [self.itemSotre.allItems objectAtIndex:indexPath.section-1];
+            MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-1];
             [self previewItem:item];
         }
      }
@@ -987,10 +943,8 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     if (indexPath.section > 0) {
         if ([tableView cellForRowAtIndexPath:indexPath].editing) {
-            if (_selectIndexPaths.count > 0) {
-                [_selectIndexPaths removeObject:indexPath];
-            }
-            [self setAllBarItemsEnabledWithCount:_selectIndexPaths.count];
+            NSInteger count = tableView.indexPathsForSelectedRows.count;
+            [self setAllBarItemsEnabledWithCount:count];
         }
     }
 }
@@ -1084,6 +1038,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     }
 }
 
+#pragma mark - 文件拓展行
 - (void)addTargetForSetMainContentCell:(SetMainContentCell *)cell
 {
     [cell.saveBtn addTarget:self action:@selector(saveFile:) forControlEvents:UIControlEventTouchUpInside];
@@ -1110,19 +1065,20 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //下载文件
 - (void)downloadFile:(id)sender
 {
+    [self recover];
     NSMutableArray *items = [NSMutableArray array];
     if (self.myFileTableView.isEditing) {   //多选下载
         for (NSIndexPath *indexPath in self.myFileTableView.indexPathsForSelectedRows) {
-            MainContentItem *tempItem = [self.itemSotre.allItems objectAtIndex:indexPath.section-1];
+            MainContentItem *tempItem = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-1];
             [items addObject:tempItem];
-            [[DownloadItemStore shareItemStore].downloadingItems addObjectsFromArray:items];
         }
+        [[DownloadItemStore sharedItemStore].downloadingItems addObjectsFromArray:items];
     } else {
-        MainContentItem *tempItem = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
-        [[DownloadItemStore shareItemStore].downloadingItems addObject:tempItem];
+        MainContentItem *tempItem = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
+        [[DownloadItemStore sharedItemStore].downloadingItems addObject:tempItem];
     }
     
-    NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore shareItemStore].downloadingItems.count];
+    NSString *value = [NSString stringWithFormat:@"%i",[DownloadItemStore sharedItemStore].downloadingItems.count];
     [[self.navigationController.tabBarController.tabBar.items objectAtIndex:2] setBadgeValue:value];
     [[NSNotificationCenter defaultCenter] postNotificationName:kDownloadNotification object:nil];
 }
@@ -1145,7 +1101,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
     UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:@"在回收站找回删除的文件" delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:@"确认删除" otherButtonTitles:nil, nil];
     actionSheet.tag = 1013;
-    if (self.selectIndexPaths.count > 0) {
+    if (self.myFileTableView.indexPathsForSelectedRows.count > 0) {
         [actionSheet showFromToolbar:_toolBar];
     } else {
         [actionSheet showFromRect:[(UIButton*)sender frame] inView:self.myFileTableView animated:YES];
@@ -1155,7 +1111,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 //更多操作
 - (void)moreFile:(id)sender
 {
-    MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+    MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
     UIActionSheet *actionSheet = nil;
     if (item.fileProperty == kFilePropertyPic) {
         actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"下载", @"重命名",@"移动",@"复制",nil];
@@ -1164,7 +1120,6 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         actionSheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:@"取消" destructiveButtonTitle:nil otherButtonTitles:@"重命名",@"移动",@"复制",nil];
         actionSheet.tag = 1015;
     }
-   
     
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
 }
@@ -1211,7 +1166,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 {
         //图片单个文件保存，indexofUnfold
      if (buttonIndex == 0) {
-         MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+         MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
          NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
          NSString *documentPath = [paths objectAtIndex:0];
          NSString *downloadDir = [documentPath stringByAppendingPathComponent:DOWNLOAD_DIR];
@@ -1224,7 +1179,6 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
              //下载图片
              
          }
-        
      }
 }
 
@@ -1238,9 +1192,9 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     NSMutableArray *nameArray = [NSMutableArray array];
     NSString *buttonTitle = [actionSheet buttonTitleAtIndex:buttonIndex];
     if ([buttonTitle isEqualToString:@"确认删除"]) {
-        if (self.myFileTableView.editing) {
+        if (self.myFileTableView.editing) {         //多选删除
             for (NSIndexPath *index in [self.myFileTableView indexPathsForSelectedRows]) {
-                 MainContentItem *item = [self.itemSotre.allItems objectAtIndex:index.section-1];
+                 MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:index.section-1];
                 [nameArray addObject:item.fileName];
             }
             
@@ -1251,7 +1205,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
             
             [self requestDeleteFile:nameArray];
         } else {
-            MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+            MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
             MainContentCell *cell = (MainContentCell*)[self.myFileTableView cellForRowAtIndexPath:self.selectIndex];
             cell.dateLabel.text = @"正在删除...";
             [nameArray addObject:item.fileName];
@@ -1262,13 +1216,13 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 
 - (void)deleteSingleItem
 {
-    MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+    MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
     NSIndexSet *indexSet = [NSIndexSet indexSetWithIndex:self.selectIndex.section];
     //应先删除服务器端的文件，再删除本地的文件或者
     //删除
     
     [self.myFileTableView beginUpdates];
-    [[self.itemSotre allItems] removeObject:item];
+    [[[MyFileItemStore sharedItemStore] allItems] removeObject:item];
     [self.myFileTableView deleteRowsAtIndexPaths:@[self.indexOfUnfold] withRowAnimation:UITableViewRowAnimationRight];
     [self.myFileTableView deleteSections:indexSet withRowAnimation:UITableViewRowAnimationRight];
     self.isUnfold = NO; //注意这个不能少
@@ -1278,29 +1232,30 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 
 - (void)deleteMutableItems
 {
+    NSInteger selectCounts = self.myFileTableView.indexPathsForSelectedRows.count;
+    NSMutableArray *selectIndexPaths = [self.myFileTableView.indexPathsForSelectedRows mutableCopy];
     NSMutableIndexSet *indexSets = [NSMutableIndexSet indexSet];
     int i = 0;
     for (NSIndexPath *indexPath in [self.myFileTableView indexPathsForSelectedRows]) {
-        MainContentItem *item = [self.itemSotre.allItems objectAtIndex:indexPath.section-i-1];
-        [self.itemSotre.allItems removeObject:item];
+        MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:indexPath.section-i-1];
+        [[MyFileItemStore sharedItemStore].allItems removeObject:item];
         [indexSets addIndex:indexPath.section];
-        if (_selectIndexPaths.count > 0) {
-            [_selectIndexPaths removeObject:indexPath];
+        if (selectIndexPaths.count > 0) {
+            [
+             selectIndexPaths removeObject:indexPath];
             i++;
         }
     }
-    
+   
     [self.myFileTableView beginUpdates];
     [self.myFileTableView deleteSections:indexSets withRowAnimation:UITableViewRowAnimationAutomatic];
     [self.myFileTableView endUpdates];
-    [self setAllBarItemsEnabledWithCount:_selectIndexPaths.count];
+    [self setAllBarItemsEnabledWithCount:selectCounts];
     
     self.indexOfUnfold = nil;
     [self.navigationItem.rightBarButtonItem setTitle:@"多选"];
     [self.myFileTableView setEditing:NO animated:YES];
-    if (self.selectIndexPaths) {
-        [self.selectIndexPaths removeAllObjects];
-    }
+
     if (self.toolBar != nil) {
         [self showTabBar];
     }
@@ -1308,7 +1263,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
 
 - (void)moreFileAction:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex
 {
-    MainContentItem *item = [self.itemSotre.allItems objectAtIndex:self.selectIndex.section-1];
+    MainContentItem *item = [[MyFileItemStore sharedItemStore].allItems objectAtIndex:self.selectIndex.section-1];
     if (actionSheet.tag == 1014) {  //图片拓展行
         switch (buttonIndex) {
             case 0:{        //下载
@@ -1473,10 +1428,10 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
     TBXMLElement *listNode = [TBXML childElementNamed:@"List" parentElement:filelistNode];
     TBXMLElement *fileNode = listNode->firstChild;
     
-    if (!itemSotre) {
-        itemSotre = [[MyFileItemStore alloc] init];
-    }
-    [itemSotre.allItems removeAllObjects];
+//    if (!itemSotre) {
+//        itemSotre = [[MyFileItemStore alloc] init];
+//    }
+    [[MyFileItemStore sharedItemStore].allItems removeAllObjects];
     
     NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
     [dateFormatter setDateFormat:@"yyyy-MM-dd HH:mm"];
@@ -1508,7 +1463,7 @@ forRowAtIndexPath: (NSIndexPath*)indexPath
         else
             tempItem.thumbnailImage = [UIImage imageNamed:@"mainFolder"];
 
-        [itemSotre.allItems addObject:tempItem];
+        [[MyFileItemStore sharedItemStore].allItems addObject:tempItem];
         fileNode = fileNode->nextSibling;
     }
     

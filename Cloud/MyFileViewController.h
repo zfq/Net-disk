@@ -17,7 +17,6 @@
 FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDelegate>
 {
     FQMenuViewController *mvc;
-//    NewFolderViewController *nfvc;
     UITapGestureRecognizer *gestureRecognizer;
 }
 
@@ -25,7 +24,6 @@ FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDele
 @property (nonatomic, strong) RefreshView *refreshView;
 @property (nonatomic,strong) UISearchDisplayController *searchDisplayController;
 
-@property (nonatomic,strong) MyFileItemStore *itemSotre;
 @property (nonatomic,strong) NSMutableDictionary *itemDictionaryStore;  //文件 forkey filename
 
 @property (nonatomic,strong) NSString *currentPath;
@@ -34,8 +32,6 @@ FQMenuViewControllerDelegate,NewFolderViewControllerDelegate,UISearchDisplayDele
 @property (nonatomic,weak) id<MyFileViewControllerDelegate> mfvcDelegate;
 
 - (MyFileViewController *)initWithDirectoryAtPath:(NSString *)dirPath;
-- (void)rebuildFileList:(NSString *)dirPath;
-
 - (void)setExtraCellLineHidden:(UITableView *)tableView;
 - (void)showMenuView:(id)sender withEvent:(UIEvent*)senderEvent;
 - (void)mutableSelect:(id)sender;
