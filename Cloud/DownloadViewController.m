@@ -26,7 +26,7 @@
     NSMutableURLRequest *_request;
     AFHTTPRequestOperation *_requestOperation;
     BOOL _connIsFinished;
-    
+    BOOL _viewIsVisible;
     NSInteger _currentProgressCounter;
     NSInteger _currentDownloadingRow;
     NSIndexPath *_currentDownloadingIndexPath;
@@ -60,8 +60,9 @@
         
         _currentProgressCounter = 0;
         _connIsFinished = NO;
+        _viewIsVisible = NO;
         _fileLength = 0;
-//        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(downloadFile:) name:kDownloadNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(downloadFile:) name:kDownloadNotification object:nil];
     }
     return self;
 }
@@ -84,8 +85,18 @@
     _downloadLabel = [[UILabel alloc] initWithFrame:CGRectMake(15.0, 0.0, width, 20.0)];
     _downloadLabel.textColor = [UIColor colorWithRed:0.265 green:0.294 blue:0.367 alpha:1];
     _downloadLabel.font = [UIFont systemFontOfSize:14.0];
-    
-//     _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+    _viewIsVisible = YES;
+}
+
+- (void)viewDidDisappear:(BOOL)animated
+{
+    [super viewDidDisappear:animated];
+    _viewIsVisible = NO;
 }
 
 - (void)didReceiveMemoryWarning
@@ -119,8 +130,8 @@
 - (void)selectAll:(id)sender
 {
     UIBarButtonItem *item = (UIBarButtonItem *)sender;
-    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+    NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
     NSInteger allCounts = downloadCounts + downloadingCounts;
     
     if ([item.title isEqualToString:@"全选"]) {
@@ -242,19 +253,17 @@
 {
     if (buttonIndex == 0) {
         
-        NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-        NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+        NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+        NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
         UIBarButtonItem *leftItem = self.navigationItem.leftBarButtonItem;
         
         if ([leftItem.title isEqualToString:@"全不选"]) {
-            [[DownloadItemStore shareItemStore].downloadingItems removeAllObjects];
-            [[DownloadItemStore shareItemStore].downloadItems removeAllObjects];
+            [[DownloadItemStore sharedItemStore].downloadingItems removeAllObjects];
+            [[DownloadItemStore sharedItemStore].downloadItems removeAllObjects];
             if (downloadingCounts > 0 && downloadCounts > 0) {
                 [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)] withRowAnimation:UITableViewRowAnimationAutomatic];
             } else {
-                
                  [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
-                
             }
         } else {
             [self deleteCellsInTableView];
@@ -266,30 +275,24 @@
 
 - (void)deleteCellsInTableView
 {
-    //        BOOL isExistUploadingCell = NO;
     NSMutableIndexSet *downloadingIndexes = [[NSMutableIndexSet alloc] init];
     NSMutableIndexSet *downloadIndexes = [[NSMutableIndexSet alloc] init];
     for (NSIndexPath *indexpath in self.downloadTableView.indexPathsForSelectedRows) {
         if (indexpath.section == 0) {
             [downloadingIndexes addIndex:indexpath.row];
-            //                if (indexpath.row == 0) {
-            //                    isExistUploadingCell = YES;
-            //                    [_requestOperation cancel];
-            //                    _requestOperation = nil;
-            //                }
         } else {
             [downloadIndexes addIndex:indexpath.row];
         }
     }
     
-    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+    NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
     
     if (downloadingCounts > 0) {
-        [[DownloadItemStore shareItemStore].downloadingItems removeObjectsAtIndexes:downloadingIndexes];
+        [[DownloadItemStore sharedItemStore].downloadingItems removeObjectsAtIndexes:downloadingIndexes];
     }
     if (downloadCounts > 0) {
-        [[DownloadItemStore shareItemStore].downloadItems removeObjectsAtIndexes:downloadIndexes];
+        [[DownloadItemStore sharedItemStore].downloadItems removeObjectsAtIndexes:downloadIndexes];
     }
     
     if (downloadingCounts > 0 && downloadCounts > 0) { //正在下载和已完成下载同时存在
@@ -315,42 +318,22 @@
             [self.downloadTableView deleteRowsAtIndexPaths:self.downloadTableView.indexPathsForSelectedRows withRowAnimation:UITableViewRowAnimationNone];
         }
     }
-    
-    
-    //        if (isExistUploadingCell && [UploadItemStore sharedStore].uploadingItems.count>0) {
-    //            [self continueUploadForView:self.uploadTableView];
-    //        }
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
 {
     UIView *customView = [[UIView alloc] initWithFrame:CGRectMake(0, 0.0, tableView.bounds.size.width, 20.0)];
     customView.backgroundColor = [UIColor colorWithRed:0.86 green:0.86 blue:0.86 alpha:1.0];
-    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
-//    if (section == 0) {
-//        if (downloadingCounts == 0) {
-//            return nil;
-//        } else {
-//            [customView addSubview:_downloadingLabel];
-//            return customView;
-//        }
-//    } else {
-//        if (_downloadLabel.text == nil) {
-//            return nil;
-//        } else {
-//            [customView addSubview:_downloadLabel];
-//            return customView;
-//        }
-//    }
-    
-    if (downloadingCounts > 0 && downloadCounts == 0) {
+    NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
+
+    if (downloadingCounts > 0 && downloadCounts == 0) {     //只有正在下载
         [customView addSubview:_downloadingLabel];
         return customView;
-    } else if (downloadingCounts == 0 && downloadCounts > 0) {
+    } else if (downloadingCounts == 0 && downloadCounts > 0) {  //只有已完成下载
         [customView addSubview:_downloadLabel];
         return customView;
-    } else if (downloadingCounts > 0 && downloadCounts > 0) {
+    } else if (downloadingCounts > 0 && downloadCounts > 0) {   //两者同时存在
         if (section == 0) {
             [customView addSubview:_downloadingLabel];
             return customView;
@@ -365,19 +348,13 @@
 
 - (CGFloat) tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section
 {
-    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
-    if (section == 0) {
-        return downloadingCounts > 0 ? 20.0 : 0;
-    } else {
-        return downloadCounts > 0 ? 20.0 : 0;
-    }
+    return 20;
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
 {
-    NSInteger downloadingNum = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadNum = [DownloadItemStore shareItemStore].downloadItems.count;
+    NSInteger downloadingNum = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadNum = [DownloadItemStore sharedItemStore].downloadItems.count;
     if (downloadingNum > 0 && downloadNum > 0) {
         return 2;
     } else if (downloadingNum ==0 && downloadNum == 0) {
@@ -389,8 +366,8 @@
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
+    NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
     
     if (downloadingCounts == 0)
         _downloadingLabel.text = nil;
@@ -401,76 +378,102 @@
         _downloadLabel.text = nil;
     else
         _downloadLabel.text = [NSString stringWithFormat:@"已完成下载（%i）",downloadCounts];
-    
-    if (section == 0) {
-        return [DownloadItemStore shareItemStore].downloadingItems.count;
+
+    if (downloadingCounts == 0 && downloadCounts > 0) {    //只有已完成下载
+        return downloadCounts;
+    } else if (downloadingCounts >0 && downloadCounts== 0) {    //只有正在下载
+        return downloadingCounts;
     } else {
-        return [DownloadItemStore shareItemStore].downloadItems.count;
+        if (section == 0) {
+            return downloadingCounts;
+        } else {
+            return downloadCounts;
+        }
     }
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-//    [self removeProgressViewInTableViewCell:cell];
     if (indexPath.section == 0) {
-        DownloadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"DownloadCell"];
-        MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:indexPath.row];
-        cell.thumbnailView.image = item.thumbnailImage;
-        cell.nameLabel.text = item.fileName;
-        cell.sizeLabel.text = item.fileSize;
-        if (indexPath.row == 0) {
-            if ([self internetIsReachable])
-                cell.dateLabel.text = item.fileSize;
+        NSInteger currentCount = [DownloadItemStore sharedItemStore].downloadingItems.count;
+        if (currentCount > 0) {
+            if (indexPath.row == 0)
+                return [self downloadCellInTableView:tableView atIndexPath:indexPath];
             else
-                cell.dateLabel.text = @"正在等待网络…";
-            if (!_progressButton) {
-                _progressButton = [UIButton buttonWithType:UIButtonTypeCustom];
-                _progressButton.frame = CGRectMake(0,0,40,40);
-                _progressButton.selected = NO;
-                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_normal"] forState:UIControlStateNormal];
-                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_pressed"] forState:UIControlStateHighlighted];
-                [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_download_normal"] forState:UIControlStateSelected];
-                [_progressButton addTarget:self action:@selector(tapProgressButton:) forControlEvents:UIControlEventTouchUpInside];
-            }
-            if (!_progressView) {
-                _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
-                UITapGestureRecognizer *recognizer = [[UITapGestureRecognizer alloc] initWithTarget:_progressView action:@selector(tapProgressView:)];
-                [_progressView addGestureRecognizer:recognizer];
-            }
-            if ([self internetIsReachable]) {
-              
-            }
-            //添加进度条
-            _progressView.progressCounter = _currentProgressCounter;
-            _progressButton.hidden = YES;
-            [_progressView addSubview:_progressButton];
-            cell.accessoryView = _progressView;
-//            cell.accessoryView = _progressButton;
-//            if (_shouldBegin == YES) {
-            _currentDownloadingIndexPath = indexPath;
-            _currentDownloadingRow = indexPath.row;
-            [self downloadItem:item];
-//                _shouldBegin = NO;
-//            }
-        } else {
-            cell.dateLabel.text = @"正在等待…";
+                return [self uploadCellInTableView:tableView atIndexPath:indexPath];
+        } else  {   //如果全部下载完成
+            return [self uploadCellInTableView:tableView atIndexPath:indexPath];
         }
-        return cell;
     } else {
-        UploadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"UploadCell"];
-        MainContentItem *item = [[DownloadItemStore shareItemStore].downloadItems objectAtIndex:indexPath.row];
-        cell.thumbnailView.image = item.thumbnailImage;
-        cell.nameLabel.text = item.fileName;
-        
-        NSDate *nowDate = [NSDate date];
-        NSDateFormatter *outFormat = [[NSDateFormatter alloc] init];
-        [outFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-        NSString *timeStr = [outFormat stringFromDate:nowDate];
-        cell.dateLabel.text = timeStr;
-        cell.sizeLabel.text = item.fileSize;
-        
-        return cell;
+        return [self uploadCellInTableView:tableView atIndexPath:indexPath];
     }
+}
+
+- (DownloadCell *)downloadCellInTableView:(UITableView *)tableView atIndexPath:(NSIndexPath *)indexPath
+{
+    DownloadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"DownloadCell"];
+    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:indexPath.row];
+    cell.thumbnailView.image = item.thumbnailImage;
+    cell.nameLabel.text = item.fileName;
+    cell.sizeLabel.text = item.fileSize;
+    if (indexPath.row == 0) {
+        if ([self internetIsReachable])
+            cell.dateLabel.text = item.fileSize;
+        else
+            cell.dateLabel.text = @"正在等待网络…";
+        if (!_progressButton) {
+            _progressButton = [UIButton buttonWithType:UIButtonTypeCustom];
+            _progressButton.frame = CGRectMake(0,0,40,40);
+            _progressButton.selected = NO;
+            [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_normal"] forState:UIControlStateNormal];
+            [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_pause_pressed"] forState:UIControlStateHighlighted];
+            [_progressButton setBackgroundImage:[UIImage imageNamed:@"fav_download_normal"] forState:UIControlStateSelected];
+            [_progressButton addTarget:self action:@selector(tapProgressButton:) forControlEvents:UIControlEventTouchUpInside];
+        }
+        if (!_progressView) {
+            _progressView = [self progressViewWithFrame:CGRectMake(0, 0, 40, 40)];
+            UITapGestureRecognizer *recognizer = [[UITapGestureRecognizer alloc] initWithTarget:_progressView action:@selector(tapProgressView:)];
+            [_progressView addGestureRecognizer:recognizer];
+        }
+        
+        //添加进度条
+        _progressView.progressCounter = _currentProgressCounter;
+        _progressButton.hidden = YES;
+        [_progressView addSubview:_progressButton];
+        cell.accessoryView = _progressView;
+        //            cell.accessoryView = _progressButton;
+        _currentDownloadingIndexPath = indexPath;
+        _currentDownloadingRow = indexPath.row;
+    } else {
+        cell.dateLabel.text = @"正在等待…";
+    }
+    return cell;
+}
+
+- (UploadCell *)uploadCellInTableView:(UITableView *)tableView atIndexPath:(NSIndexPath *)indexPath
+{
+    UploadCell *cell = [tableView dequeueReusableCellWithIdentifier:@"UploadCell"];
+    cell.accessoryView = nil;
+    MainContentItem *item = nil;
+    if (indexPath.section == 0)
+        item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:indexPath.row];
+    else
+        item = [[DownloadItemStore sharedItemStore].downloadItems objectAtIndex:indexPath.row];
+    cell.thumbnailView.image = item.thumbnailImage;
+    cell.nameLabel.text = item.fileName;
+    
+    NSDate *nowDate = [NSDate date];
+    NSDateFormatter *outFormat = [[NSDateFormatter alloc] init];
+    [outFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
+    NSString *timeStr = [outFormat stringFromDate:nowDate];
+    if (indexPath.section == 0) {
+        cell.dateLabel.text = @"正在等待";
+    } else {
+        cell.dateLabel.text = timeStr;
+    }
+    cell.sizeLabel.text = item.fileSize;
+    
+    return cell;
 }
 
 - (void)tapProgressButton:(id)sender
@@ -490,6 +493,27 @@
     _progressButton.hidden = NO;
 }
 
+- (void)downloadFile:(NSNotification *)notification
+{
+//    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:0];
+//    [self downloadItem:item];
+ /*
+    __block typeof(self) weakself = self;
+//    NSInteger count = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    dispatch_queue_t queue = dispatch_queue_create("com.cloud.downloadQueue", NULL);
+    for (MainContentItem *item in [DownloadItemStore sharedItemStore].downloadingItems) {
+        dispatch_sync(queue, ^{
+            [weakself downloadItem:item];
+        });
+    }
+  */
+//    dispatch_async(queue, ^{
+//        sleep(5);
+//        NSLog(@"哈哈");
+//            });
+//    dispatch_async(queue, ^{NSLog(@"我擦");});
+}
+
 - (void)downloadItem:(MainContentItem *)item
 {
     if (!_request) {
@@ -498,6 +522,7 @@
         _request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
         _request.timeoutInterval = 30;
     }
+    NSLog(@"sdf");
     NSString *sid = [[NSUserDefaults standardUserDefaults] objectForKey:@"Sid"];
     NSString *urlString = [NSString stringWithFormat:@"%@cnddownload.cgi?path=%@&name=%@&sid=%@",HOST_URL,item.currentFolderPath,item.fileName,sid];
     NSStringEncoding enc = CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000);
@@ -505,41 +530,8 @@
     _request.URL = [NSURL URLWithString:str1];
   
     NSURLConnection *connection = [[NSURLConnection alloc] initWithRequest:_request delegate:self startImmediately:NO];
-//    NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
-//    if (!_connIsFinished) {
-//        [connection scheduleInRunLoop:runLoop forMode:NSDefaultRunLoopMode];
-//    }
     [connection start];
 
-/*
-    _requestOperation = [[AFHTTPRequestOperation alloc] initWithRequest:_request];
-    __weak typeof(self) weakSelf = self;
-    NSInteger row = [[DownloadItemStore shareItemStore].downloadingItems indexOfObject:item];
-    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:row inSection:0];
-    _currentDownloadingRow = row;
-    
-    [_requestOperation setDownloadProgressBlock:^(NSUInteger bytesRead, long long totalBytesRead, long long totalBytesExpectedToRead) {
-        [weakSelf updateProgressViewWithComplete:totalBytesRead totalToRead:totalBytesExpectedToRead bytesRead:bytesRead atIndexPath:indexPath];  //刷新进度条
-    }];
-    [_requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        [weakSelf parseDownloadXMLWithData:operation.responseData];
-        [operation cancel];
-        operation = nil;
-        
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        if (operation != nil) {
-            [operation cancel];
-            operation = nil;
-        }
-        
-        [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
-        if ([error code] != NSURLErrorCancelled) {
-            NSLog(@"下载失败:%@",error.localizedDescription);
-        }
-    }];
-    
-    [_requestOperation start];
-*/
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
 }
 
@@ -554,157 +546,151 @@
     if (!(isDir && isExisted)) {
         [manager createDirectoryAtPath:downloadDir withIntermediateDirectories:YES attributes:nil error:nil];
     }
-    NSString *downloadPath = [downloadDir stringByAppendingPathComponent:fileName];
     
+    NSString *downloadPath = [downloadDir stringByAppendingPathComponent:fileName];
     [manager createFileAtPath:downloadPath contents:nil attributes:nil];
     
     return downloadPath;
-
-}
-/*
-#pragma mark 刷新进度条
-- (void)updateProgressViewWithComplete:(long long)totalByteRead totalToRead:(long long)totalBytesExpectedToRead
-                              bytesRead:(NSUInteger)bytesRead atIndexPath:(NSIndexPath *)indexPath
-{
-    MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:indexPath.row];
-    DownloadCell *cell = (DownloadCell*)[self.downloadTableView cellForRowAtIndexPath:indexPath];
-    
-    NSLog(@"%u",bytesRead);
-  //    cell.sizeLabel.text = [NSString stringWithFormat:@"%iK/s",bytesRead/1024];
-    MDRadialProgressView *progressView = nil;
-    
-    progressView = (MDRadialProgressView*)cell.accessoryView;
-    _currentProgressCounter =  (NSInteger)((totalByteRead*100)/totalBytesExpectedToRead);    //0~100内整数
-//    NSLog(@"%lli %lli %i",totalByteRead,totalBytesExpectedToRead,_currentProgressCounter);
-  
-//    NSLog(@"%i",_currentProgressCounter);
-    progressView.progressCounter = _currentProgressCounter;
-    
-//    cell.dateLabel.text = item.fileSize;
-    if (totalByteRead < 1000 ) {      //近似< 1K
-        cell.dateLabel.text = [NSString stringWithFormat:@"%iB/%@",(int)totalByteRead,item.fileSize];
-    } else if (totalByteRead >=1000 && totalByteRead <1024000) { //近似<1MB
-        cell.dateLabel.text = [NSString stringWithFormat:@"%iK/%@",(int)(totalByteRead/1024),item.fileSize];
-    } else if (totalByteRead >= 1024000 && totalByteRead <1024000000) { //近似>1MB
-        cell.dateLabel.text = [NSString stringWithFormat:@"%.2fM/%@",totalByteRead/1024000.0,item.fileSize];
-    } else {
-        cell.dateLabel.text = [NSString stringWithFormat:@"%.2G/%@",totalByteRead/1024000000.0,item.fileSize];
-    }
-    
-    if (!_receivedData) {
-        _receivedData = [[NSMutableData alloc] init];
-    }
-    [_receivedData appendData:_requestOperation.responseData];
 }
 
-- (void)parseDownloadXMLWithData:(NSData *)data
-{
-    UIImage *image = [UIImage imageWithData:data];
-    MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:_currentDownloadingRow];
-    [[DownloadItemStore shareItemStore].downloadingItems removeObject:item];
-    [[DownloadItemStore shareItemStore].downloadItems addObject:item];
-    
-    //更新tableView和itemStore
-//    NSIndexPath *firstIndexPath = [NSIndexPath indexPathForRow:0 inSection:0];
-//    NSInteger downloadingCounts = [DownloadItemStore shareItemStore].downloadingItems.count;
-//    NSInteger downloadCounts = [DownloadItemStore shareItemStore].downloadItems.count;
-//    if (downloadingCounts == 0 && downloadCounts==1) { //downloadingCounts在这里一定>=1
-//        
-//        [self.downloadTableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
-//        [self.downloadTableView insertRowsAtIndexPaths:@[firstIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-//    } else {
-//        NSIndexPath *deleteIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:0];
-//        NSIndexPath *insertIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:1];
-//        [self.downloadTableView deleteRowsAtIndexPaths:@[deleteIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-//        [self.downloadTableView insertRowsAtIndexPaths:@[insertIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-//    }
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
-    UIImageWriteToSavedPhotosAlbum(image, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
-}
-
-- (void)image: (UIImage *) image didFinishSavingWithError: (NSError *) error
-  contextInfo: (void *) contextInfo;
-{
-//    [self createHUD];
-//    UIImage *img = [UIImage imageNamed:@"MBProgressHUD.bundle/success.png"];
-    
-    if (error != NULL) {
-        NSLog(@"保存照片失败：%@",error.localizedDescription);
-//        [self showHUDWithImage:img messege:@"照片保存失败"];
-    }else{
-        NSLog(@"保存照片成功");
-//        [self showHUDWithImage:img messege:@"照片保存成功"];
-    };
-}
-*/
 #pragma mark - NSURLConnection delegate
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
 {
     _connIsFinished = YES;
+    connection = nil;
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
     NSLog(@"请求下载失败:%@",error.localizedDescription);
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response
 {
-    MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
+    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
     _fileHandle = [NSFileHandle fileHandleForWritingAtPath:[self.class downloadPathWithFileName:item.fileName]];
     
     if (!_receivedData) {
         _receivedData = [[NSMutableData alloc] initWithLength:0];
     }
-//    [_receivedData setLength:0];
     _receivedLength = 0;
-    _fileLength = [response expectedContentLength];
+    
+    NSString *sizeStr = item.fileSize;
+    NSRange range = [sizeStr rangeOfString:@" "];
+    CGFloat floatSize = [sizeStr substringToIndex:range.location].floatValue;
+    
+    NSRange BRange = [sizeStr rangeOfString:@"B"];
+    NSRange KRange = [sizeStr rangeOfString:@"KB"];
+    NSRange MRange = [sizeStr rangeOfString:@"M"];
+    NSRange GRange = [sizeStr rangeOfString:@"G"];
+    
+    if (KRange.length > 0) {
+        _fileLength = floatSize * 1024;
+    } else if (BRange.length > 0) {
+         _fileLength = floatSize;
+    }else if (MRange.length > 0) {
+        _fileLength = floatSize * 1048576;
+    } else if (GRange.length > 0){
+        _fileLength = floatSize * 1073741824;
+    }
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data
 {
     [_receivedData appendData:data];
     _receivedLength += data.length;
-    
+   
     if (_receivedData.length > MAX_BUFFER_LENGTH && _fileHandle!=nil) {
         [_fileHandle writeData:_receivedData];
-//        [_receivedData setLength:0];    //
         _receivedData = nil;
-        _receivedData = [[NSMutableData alloc] initWithLength:0];
+        _receivedData = [NSMutableData data];
     }
-
-
+    
     if (_currentDownloadingIndexPath != nil) {    //如果界面没有显示时
-        MainContentItem *item = [[DownloadItemStore shareItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
-        DownloadCell *cell = (DownloadCell*)[self.downloadTableView cellForRowAtIndexPath:_currentDownloadingIndexPath];
-//        NSLog(@"receivdata");
-//        MDRadialProgressView *progressView = nil;
-//        
-//        progressView = (MDRadialProgressView*)cell.accessoryView;
-        _currentProgressCounter =  (NSInteger)((_receivedLength*100)/_fileLength);    //0~100内整数
-//
-        _progressView.progressCounter = _currentProgressCounter;
         
-//        if (_receivedLength < 1000 ) {      //近似< 1K
-//            cell.dateLabel.text = [NSString stringWithFormat:@"%iB/%@",(int)_receivedLength,item.fileSize];
-//        } else if (_receivedLength >=1000 && _receivedLength <1024000) { //近似<1MB
-//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1fK/%@",(_receivedLength/1024.0),item.fileSize];
-//        } else if (_receivedLength >= 1024000 && _receivedLength <1024000000) { //近似>1MB
-//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1fM/%@",_receivedLength/1024000.0,item.fileSize];
-//        } else {
-//            cell.dateLabel.text = [NSString stringWithFormat:@"%.1G/%@",_receivedLength/1024000000.0,item.fileSize];
-//        }
-    }
+        MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
+        DownloadCell *cell = (DownloadCell*)[self.downloadTableView cellForRowAtIndexPath:_currentDownloadingIndexPath];
 
+        _currentProgressCounter =  (NSInteger)((_receivedLength*100)/_fileLength);    //0~100内整数
+        _progressView.progressCounter = _currentProgressCounter;
+        NSString *string = nil;
+        if (_receivedLength < 1000 ) {      //近似< 1K
+            string = [NSString stringWithFormat:@"%iB/%@",(int)_receivedLength,item.fileSize];
+        } else if (_receivedLength >=1000 && _receivedLength <1024000) { //近似<1MB
+            if (_receivedLength%1024 == 0)
+                string = [NSString stringWithFormat:@"%iK/%@",(int)(_receivedLength/1024),item.fileSize];
+            else
+                string = [NSString stringWithFormat:@"%.1fK/%@",_receivedLength/1024.0,item.fileSize];
+        } else if (_receivedLength >= 1024000 && _receivedLength <1024000000) { //近似>1MB
+            if (_receivedLength%1024000 == 0)
+                string = [NSString stringWithFormat:@"%iM/%@",(int)(_receivedLength/1024000),item.fileSize];
+            else
+                string = [NSString stringWithFormat:@"%.1fM/%@",_receivedLength/1024000.0,item.fileSize];
+        } else {
+            if (_receivedLength%1024000000 == 0)
+                string = [NSString stringWithFormat:@"%iG/%@",(int)(_receivedLength/1024000000),item.fileSize];
+            else
+                string = [NSString stringWithFormat:@"%.1G/%@",_receivedLength/1024000000.0,item.fileSize];
+        }
+        cell.dateLabel.text = string;
+    }
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection
 {
     _connIsFinished = YES;
+    _currentProgressCounter = 100;
     [_fileHandle writeData:_receivedData];
     [_fileHandle closeFile];
     _receivedData = nil;
+    [connection cancel];
+    connection = nil;
     [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
-     NSLog(@"finish");
+    
+    [self refreshDownloadStore];
+    [self automaticRefreshCell];
+    [self launchNextConnection];
+    NSLog(@"finish");
 }
 
+- (void)launchNextConnection
+{
+    NSInteger count = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    if (count == 0) {
+        return;
+    }
+    
+    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:0];
+    [self downloadItem:item];
+}
 
+#pragma mark - 更新数据源
+- (void)refreshDownloadStore
+{
+    MainContentItem *item = [[DownloadItemStore sharedItemStore].downloadingItems objectAtIndex:_currentDownloadingIndexPath.row];
+    [[DownloadItemStore sharedItemStore].downloadingItems removeObject:item];
+    [[DownloadItemStore sharedItemStore].downloadItems addObject:item];
+}
+
+- (void)automaticRefreshCell
+{
+    NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+    NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
+//    NSLog(@"正在下载%i 已完成%i",downloadingCounts,downloadCounts);
+    if (_viewIsVisible) {
+        //    NSIndexPath *firstIndexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+//        NSInteger downloadingCounts = [DownloadItemStore sharedItemStore].downloadingItems.count;
+//        NSInteger downloadCounts = [DownloadItemStore sharedItemStore].downloadItems.count;
+//        NSLog(@"正在下载%i 已完成%i",downloadingCounts,downloadCounts);
+        if (downloadingCounts == 0 ) { //如果全部下载完成
+            [self.downloadTableView reloadData];
+            NSLog(@"刷新");
+        } else {
+            NSIndexPath *deleteIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:0];
+            NSIndexPath *insertIndexPath = [NSIndexPath indexPathForRow:_currentDownloadingRow inSection:1];
+            [self.downloadTableView deleteRowsAtIndexPaths:@[deleteIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+            [self.downloadTableView insertRowsAtIndexPaths:@[insertIndexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+        }
+
+    }
+}
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -725,15 +711,15 @@
 {
     if (editingStyle == UITableViewCellEditingStyleDelete) {
         if (indexPath.section == 0) {
-            [[DownloadItemStore shareItemStore].downloadingItems removeObjectAtIndex:indexPath.row];
-            if ([DownloadItemStore shareItemStore].downloadingItems.count == 0) {
+            [[DownloadItemStore sharedItemStore].downloadingItems removeObjectAtIndex:indexPath.row];
+            if ([DownloadItemStore sharedItemStore].downloadingItems.count == 0) {
                 [tableView deleteSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationAutomatic];
             } else {
                 [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
             }
         } else {
-            [[DownloadItemStore shareItemStore].downloadItems removeObjectAtIndex:indexPath.row];
-            if ([DownloadItemStore shareItemStore].downloadItems.count == 0) {
+            [[DownloadItemStore sharedItemStore].downloadItems removeObjectAtIndex:indexPath.row];
+            if ([DownloadItemStore sharedItemStore].downloadItems.count == 0) {
                 [tableView deleteSections:[NSIndexSet indexSetWithIndex:1] withRowAnimation:UITableViewRowAnimationAutomatic];
             } else {
                 [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
@@ -769,7 +755,7 @@
     view.theme.thickness = 10;
     view.theme.sliceDividerHidden = YES;
 	view.theme.centerColor = [UIColor whiteColor];
-    view.label.textColor = view.theme.completedColor ;
+    view.label.textColor = view.theme.completedColor;
     
 	return view;
 }
